@@ -27,6 +27,9 @@
         "xhash": "c",
         "xstring": "c",
         "xtree": "c",
-        "xutility": "c"
+        "xutility": "c",
+        "event_groups.h": "c",
+        "esp_system.h": "c",
+        "sys.h": "c"
     }
 }
