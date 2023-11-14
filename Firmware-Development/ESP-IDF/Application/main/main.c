@@ -26,10 +26,11 @@ static const char *TAG = "wifi station";
 
 #define FILE_PATH "/spiffs/audio.mp3"
 
-char* file_contents = NULL;
-size_t file_size =0;
+#define MAX_HTTP_RECV_BUFFER 1024
+char buffer[MAX_HTTP_RECV_BUFFER] = {0};
 
-void read_audio_file() {
+void spiffs_init() 
+{
     ESP_LOGI(TAG, "Initializing SPIFFS");
 
     esp_vfs_spiffs_conf_t conf = {
@@ -55,23 +56,11 @@ void read_audio_file() {
             ESP_LOGE(TAG, "Failed to initialize SPIFFS (%s)", esp_err_to_name(ret));
         }
     }
-
-    // // Read the MP3 file from SPIFFS
-    FILE* file = fopen(FILE_PATH, "rb");
-    fseek(file, 0, SEEK_END);
-    file_size = ftell(file);
-    fseek(file, 0, SEEK_SET);
-
-    file_contents = (char*)malloc(file_size);
-    fread(file_contents, 1, file_size, file);
-    fclose(file);
-    printf("file size : %d\n", file_size);
-    printf("mp3 data: %.*s\n", file_size, file_contents);
-
 }
 
 // Event handler for HTTP events
-esp_err_t esp_http_client_event_handler(esp_http_client_event_t *evt) {
+esp_err_t esp_http_client_event_handler(esp_http_client_event_t *evt) 
+{
     switch (evt->event_id) {
         case HTTP_EVENT_ERROR:
             ESP_LOGE(TAG, "HTTP_EVENT_ERROR");
@@ -105,54 +94,91 @@ esp_err_t esp_http_client_event_handler(esp_http_client_event_t *evt) {
     return ESP_OK;
 }
 
-// Perform the HTTP POST request
-void send_post_request() {
-    // esp_http_client_config_t config = {
-    //     .url = "https://api.openai.com/v1/audio/transcriptions",
-    //     .method = HTTP_METHOD_POST,
-    //     .event_handler = esp_http_client_event_handler,
-    // };
-
+void send_post_request() 
+{
     esp_http_client_config_t config = {
-        .url = "https://api.openai.com/v1/audio/transcriptions",
+        .url = "https://api.openai.com/v1/audio/transcriptions",//"http://192.168.18.191:8000",
         .method = HTTP_METHOD_POST,
         .event_handler = esp_http_client_event_handler,
     };
-
     esp_http_client_handle_t client = esp_http_client_init(&config);
+
+    FILE* file = fopen(FILE_PATH, "rb");
+    if (!file) {
+        ESP_LOGE(TAG, "Failed to open file");
+        esp_http_client_cleanup(client);
+        return;
+    }
+
+    // Calculate file size
+    fseek(file, 0, SEEK_END);
+    int file_size = ftell(file);
+    fseek(file, 0, SEEK_SET);
     
-    // esp_http_client_set_url(client, "/v1/audio/transcriptions");
-    // esp_http_client_set_method(client, HTTP_METHOD_POST);
-    // Set form data
-    // esp_http_client_set_post_field(client, "@./audio.mp3", strlen("@./audio.mp3"), "file", "audio/mp3");
-    // esp_http_client_set_post_field(client, "whisper-1", strlen("whisper-1"), "model", "text/plain");
-
-    // Set headers
     esp_http_client_set_header(client, "Authorization", "Bearer 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");
-    esp_http_client_set_header(client, "Content-Type", "multipart/form-data");
-    // esp_http_client_set_header(client, "Content-Type", "application/json");
+    esp_http_client_set_header(client, "Content-Type", "multipart/form-data; boundary=myboundary");
+    // esp_http_client_set_header(client, "Content-Length", "12667");
 
-    // char* post_data = "helllo";
-    esp_http_client_set_post_field(client, file_contents, file_size);
-    esp_http_client_set_header(client, "Content-Type", "multipart/form-data");
+    const char* head_template = "--myboundary\r\nContent-Disposition: form-data; name=\"file\"; filename=\"audio.mp3\"\r\n\r\n";
+    const char* head_1 = "\r\n--myboundary\r\nContent-Disposition: form-data; name=\"model\"\r\n\r\nwhisper-1\r\n";
+    const char* tail = "--myboundary--\r\n";
+
+    // Set content length
+    size_t content_length = strlen(head_template) + strlen(head_1) + file_size + strlen(tail);
+    ESP_LOGE("","Length : %d", content_length);
+
+    esp_err_t ret = esp_http_client_open(client, content_length);
+    if (ret != ESP_OK) 
+    {
+        ESP_LOGE(TAG, "Failed to open HTTP connection: %s", esp_err_to_name(ret));
+        esp_http_client_cleanup(client);
+    } 
+    
+    // Start building the request body
+    esp_http_client_write(client, head_template, strlen(head_template));
+
+    // Loop to read and send file content
+    while (file_size > 0) 
+    {
+        int read_len = fread(buffer, 1, MAX_HTTP_RECV_BUFFER, file);
+        if (read_len <= 0) 
+        {
+            ESP_LOGE(TAG, "Error reading file");
+            break;
+        }
+        esp_http_client_write(client, buffer, read_len);
+        file_size -= read_len;
+    }
+
+    // Add model parameter to the request body
+    esp_http_client_write(client, head_1, strlen(head_1));
+    esp_http_client_write(client, tail, strlen(tail));
+
+    fclose(file);
+
+    // Perform HTTP request
     esp_err_t err = esp_http_client_perform(client);
-    if (err == ESP_OK) {
+    if (err == ESP_OK) 
+    {
         ESP_LOGI(TAG, "HTTP POST Status = %d, content_length = %d",
-                esp_http_client_get_status_code(client),
-                esp_http_client_get_content_length(client));
-    } else {
+                 esp_http_client_get_status_code(client),
+                 esp_http_client_get_content_length(client));
+    } 
+    else 
+    {
         ESP_LOGE(TAG, "HTTP POST request failed: %s", esp_err_to_name(err));
     }
 
     esp_http_client_cleanup(client);
 }
 
+
 /* The examples use WiFi configuration that you can set via project configuration menu
 
    If you'd rather not, just change the below entries to strings with
    the config you want - ie #define EXAMPLE_WIFI_SSID "mywifissid"
 */
-#define EXAMPLE_ESP_WIFI_SSID      "eSpark Wifi"
+#define EXAMPLE_ESP_WIFI_SSID      "eSpark Consulting Group"
 #define EXAMPLE_ESP_WIFI_PASS      "47356880"
 #define EXAMPLE_ESP_MAXIMUM_RETRY  5
 
@@ -289,7 +315,7 @@ void app_main(void)
 
     ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
     wifi_init_sta();
-    read_audio_file();
+    spiffs_init();
 
     vTaskDelay(3000 / portTICK_PERIOD_MS);
     send_post_request();
