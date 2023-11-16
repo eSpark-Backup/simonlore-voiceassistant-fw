@@ -21,13 +21,17 @@
 #include "openapi_http.h"
 #include "wifi.h"
 #include "nvs_flash.h"
+#include "output.h"
 
-int detect_flag = 0;
 static esp_afe_sr_iface_t *afe_handle = NULL;
 static esp_afe_sr_data_t *afe_data = NULL;
 static volatile int task_flag = 0;
 
 const char* TAG = "ESP-SKAINET";
+
+#define RECORD_TIME_SECONDS 32
+#define ONE_SECOND_FRAMES 31.25f
+
 void feed_Task(void *arg)
 {
     esp_afe_sr_data_t *afe_data = arg;
@@ -39,11 +43,17 @@ void feed_Task(void *arg)
     assert(i2s_buff);
     ESP_LOGE("", "chunk size : %d", audio_chunksize);
 
-    while (task_flag) {
-        esp_get_feed_data(false, i2s_buff, audio_chunksize * sizeof(int16_t) * feed_channel);
+    while (1)
+    {
+        while (task_flag) {
+            esp_get_feed_data(false, i2s_buff, audio_chunksize * sizeof(int16_t) * feed_channel);
 
-        afe_handle->feed(afe_data, i2s_buff);
+            afe_handle->feed(afe_data, i2s_buff);
+        }
+        vTaskDelay(10/ portTICK_RATE_MS);
     }
+    
+    
     if (i2s_buff) {
         free(i2s_buff);
         i2s_buff = NULL;
@@ -65,6 +75,14 @@ void detect_Task(void *arg)
     esp_audio_get_play_vol(&volume);
     ESP_LOGE(TAG, "Volume : %d", volume);
 
+    uint8_t header[44];
+    int dataSize = (512 * ONE_SECOND_FRAMES * RECORD_TIME_SECONDS);
+    int16_t* printer = malloc(dataSize * sizeof(int16_t));
+    if (!printer)
+    {
+        ESP_LOGE(TAG, "memory not allocated");
+    }
+
     while (task_flag) {
         // afe_fetch_result_t* res = afe_handle->fetch(afe_data); 
         // if (!res || res->ret_value == ESP_FAIL) {
@@ -79,87 +97,28 @@ void detect_Task(void *arg)
         // }
         // esp_audio_play(res->data, res->data_size, 1000/ portTICK_RATE_MS);
 
-        #if 0
-        esp_http_client_config_t config = 
-        {
-            .url = "https://api.openai.com/v1/audio/transcriptions",//"http://192.168.18.191:8000",
-            .method = HTTP_METHOD_POST,
-            .event_handler = esp_http_client_event_handler,
-        };
-        esp_http_client_handle_t client = esp_http_client_init(&config);
-        
-        char auth_value[100];
-        snprintf(auth_value, sizeof(auth_value), "Bearer %s", API_KEY);
-        esp_http_client_set_header(client, "Authorization", auth_value);
-        
-        esp_http_client_set_header(client, "Content-Type", "multipart/form-data; boundary=esp32boundary");
-
-        const char* head_boundary = "--esp32boundary\r\n";
-        const char* head_template = "Content-Disposition: form-data; name=\"file\"; filename=\"audio.wav\"\r\n\r\n";
-        // const char* filename = getFileName(file_path);
-        size_t resultSize = strlen(head_template) ;//+ strlen(filename);
-
-        // Allocate memory for the final string
-        char *head_final = (char *)malloc(resultSize + 1);
-
-        // Create the final string by formatting the head_template with the filename
-        snprintf(head_final, resultSize + 1, head_template);
-
-        const char* model_boundary = "\r\n--esp32boundary\r\n";
-        const char* model = "Content-Disposition: form-data; name=\"model\"\r\n\r\nwhisper-1\r\n";
-        const char* tail = "--esp32boundary--\r\n";
-
-        uint8_t header[44];
-        int dataSize = ((512 * 2) * 125);
-        generateWavHeader(header, 16000, dataSize);
-        // Set content length
-        size_t content_length = strlen(head_boundary) + strlen(head_final) + strlen(model_boundary) + strlen(model) + dataSize + sizeof(header) + strlen(tail);
-        ESP_LOGE("","Length : %d", content_length);
-
-        esp_err_t ret = esp_http_client_open(client, content_length);
-        if (ret != ESP_OK) 
-        {
-            ESP_LOGE(TAG, "Failed to open HTTP connection: %s", esp_err_to_name(ret));
-            esp_http_client_cleanup(client);
-        } 
-        
-        // Start building the request body
-        esp_http_client_write(client, head_boundary, strlen(head_boundary));
-        esp_http_client_write(client, head_final, strlen(head_final));
-
-        esp_http_client_write(client, (char*)header, sizeof(header));
-        for (size_t i = 0; i < 125; i++)
+        printf("\nRecording.......!\n");
+        size_t totalDataSize = 0;
+        for (size_t i = 0; i < ONE_SECOND_FRAMES * 3; i++)
         {
             afe_fetch_result_t* res = afe_handle->fetch(afe_data); 
             if (!res || res->ret_value == ESP_FAIL) {
                 printf("fetch error!\n");
                 break;
             }
-            esp_http_client_write(client, (char*)res->data, res->data_size * 2);
+            memcpy(printer + totalDataSize, res->data, res->data_size * sizeof(int16_t));
+            totalDataSize += res->data_size;
+            esp_audio_play(res->data, res->data_size, 1000 / portTICK_RATE_MS);
         }
+        printf("\nStopped!\n");
+        task_flag = 0;
+        esp_audio_play(printer, 512 * ONE_SECOND_FRAMES * 3, 3000/ portTICK_RATE_MS);
+        // transcribe_wav_file(printer2, dataSize);
+        task_flag = 1;
         
+        // while(1);
 
-        // Add model parameter to the request body
-        esp_http_client_write(client, model_boundary, strlen(model_boundary));
-        esp_http_client_write(client, model, strlen(model));
-        esp_http_client_write(client, tail, strlen(tail));
-
-        // Perform HTTP request
-        esp_err_t err = esp_http_client_perform(client);
-        if (err == ESP_OK) 
-        {
-            ESP_LOGI(TAG, "HTTP POST Status = %d, content_length = %d",
-                    esp_http_client_get_status_code(client),
-                    esp_http_client_get_content_length(client));
-        } 
-        else 
-        {
-            ESP_LOGE(TAG, "HTTP POST request failed: %s", esp_err_to_name(err));
-        }
-
-        esp_http_client_cleanup(client);
-        free(head_final);
-        #endif
+        
 
     }
     if (buff) {
@@ -183,7 +142,7 @@ void app_main()
     wifi_init_sta();
     // spiffs_init();
 
-    vTaskDelay(3000 / portTICK_PERIOD_MS);
+    // vTaskDelay(3000 / portTICK_PERIOD_MS);
     // send_post_request(API_KEY, FILE_PATH);
     // ESP_ERROR_CHECK(esp_sdcard_init("/sdcard", 10));
 

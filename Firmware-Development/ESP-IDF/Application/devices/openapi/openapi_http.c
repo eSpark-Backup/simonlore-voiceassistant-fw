@@ -74,7 +74,7 @@ esp_err_t esp_http_client_event_handler(esp_http_client_event_t *evt)
 
         case HTTP_EVENT_ON_DATA:
             ESP_LOGI(TAG, "HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
-            printf("Received data: %.*s\n", evt->data_len, (char *)evt->data);
+            printf("%.*s\n", evt->data_len, (char *)evt->data);
             break;
 
         case HTTP_EVENT_ON_FINISH:
@@ -261,56 +261,93 @@ void send_post_request(const char* api_key, int* data, uint16_t size)
 }
 #endif
 
-// Function to generate WAV header for a 16-bit mono audio file with a given sample rate
-void generateWavHeader(uint8_t* header, int sampleRate, int dataSize) {
-    // ChunkID "RIFF"
-    header[0] = 'R';
-    header[1] = 'I';
-    header[2] = 'F';
-    header[3] = 'F';
+void fillWavHeader(WavHeader *header, int dataSize) {
+    // Fill in the header values
+    memcpy(header->riff, "RIFF", 4);
+    header->fileSize = dataSize + 36;  // Wave file size excluding first 44 bytes
+    memcpy(header->wave, "WAVE", 4);
+    memcpy(header->fmt, "fmt ", 4);
+    header->fmtSize = 16;  // Size of the fmt chunk
+    header->audioFormat = 1;  // PCM format
+    header->numChannels = 1;  // Mono
+    header->sampleRate = 16000;  // Sample rate
+    header->bitsPerSample = 16;  // Bits per sample
+    header->blockAlign = header->numChannels * header->bitsPerSample / 8;
+    header->byteRate = header->sampleRate * header->numChannels * header->bitsPerSample / 8;
+    memcpy(header->data, "data", 4);
+    header->dataSize = dataSize;  // Size of the data chunk
+}
 
-    // ChunkSize (file size - 8)
-    *((int32_t*)&header[4]) = dataSize + 36;
+void transcribe_wav_file(int16_t* stream, uint32_t size) 
+{
+    esp_http_client_config_t config = 
+    {
+        .url = "http://192.168.18.191:8000",
+        .method = HTTP_METHOD_POST,
+        .event_handler = esp_http_client_event_handler,
+    };
+    esp_http_client_handle_t client = esp_http_client_init(&config);
+    
+    char auth_value[100];
+    snprintf(auth_value, sizeof(auth_value), "Bearer %s", API_KEY);
+    // esp_http_client_set_header(client, "Authorization", auth_value);
+    
+    esp_http_client_set_header(client, "Content-Type", "multipart/form-data; boundary=esp32boundary");
 
-    // Format "WAVE"
-    header[8] = 'W';
-    header[9] = 'A';
-    header[10] = 'V';
-    header[11] = 'E';
+    const char* head_boundary = "--esp32boundary\r\n";
+    const char* head_template = "Content-Disposition: form-data; name=\"file\"; filename=\"audio.wav\"\r\n\r\n";
+    size_t resultSize = strlen(head_template);
 
-    // Subchunk1ID "fmt "
-    header[12] = 'f';
-    header[13] = 'm';
-    header[14] = 't';
-    header[15] = ' ';
+    // Allocate memory for the final string
+    char *head_final = (char *)malloc(resultSize + 1);
 
-    // Subchunk1Size (16 for PCM)
-    *((int32_t*)&header[16]) = 16;
+    // Create the final string by formatting the head_template with the filename
+    snprintf(head_final, resultSize + 1, head_template);
 
-    // AudioFormat (PCM = 1)
-    *((int16_t*)&header[20]) = 1;
+    const char* model_boundary = "\r\n--esp32boundary\r\n";
+    const char* model = "Content-Disposition: form-data; name=\"model\"\r\n\r\nwhisper-1\r\n";
+    const char* tail = "--esp32boundary--\r\n";
 
-    // NumChannels (1 for mono)
-    *((int16_t*)&header[22]) = 1;
+    uint8_t header[44];
+    uint32_t byteSize = size * sizeof(int16_t);
+    fillWavHeader((WavHeader*)header, byteSize);
+    // Set content length
+    size_t content_length = strlen(head_boundary) + strlen(head_final) + strlen(model_boundary) + strlen(model) + byteSize + sizeof(header) + strlen(tail);
+    ESP_LOGE("","Length : %d", content_length);
+    ESP_LOGE("","data length : %d", ((WavHeader*)header)->dataSize);
 
-    // SampleRate
-    *((int32_t*)&header[24]) = sampleRate;
+    esp_err_t ret = esp_http_client_open(client, content_length);
+    if (ret != ESP_OK) 
+    {
+        ESP_LOGE(TAG, "Failed to open HTTP connection: %s", esp_err_to_name(ret));
+        esp_http_client_cleanup(client);
+    } 
+    
+    // Start building the request body
+    esp_http_client_write(client, head_boundary, strlen(head_boundary));
+    esp_http_client_write(client, head_final, strlen(head_final));
 
-    // ByteRate (SampleRate * NumChannels * BitsPerSample/8)
-    *((int32_t*)&header[28]) = sampleRate * 1 * 16 / 8;
+    esp_http_client_write(client, (char*)header, sizeof(header));
+    esp_http_client_write(client, (char*)stream, byteSize);    
 
-    // BlockAlign (NumChannels * BitsPerSample/8)
-    *((int16_t*)&header[32]) = 1 * 16 / 8;
+    // Add model parameter to the request body
+    esp_http_client_write(client, model_boundary, strlen(model_boundary));
+    esp_http_client_write(client, model, strlen(model));
+    esp_http_client_write(client, tail, strlen(tail));
 
-    // BitsPerSample
-    *((int16_t*)&header[34]) = 16;
+    // Perform HTTP request
+    esp_err_t err = esp_http_client_perform(client);
+    if (err == ESP_OK) 
+    {
+        ESP_LOGI(TAG, "HTTP POST Status = %d, content_length = %d",
+                esp_http_client_get_status_code(client),
+                esp_http_client_get_content_length(client));
+    } 
+    else 
+    {
+        ESP_LOGE(TAG, "HTTP POST request failed: %s", esp_err_to_name(err));
+    }
 
-    // Subchunk2ID "data"
-    header[36] = 'd';
-    header[37] = 'a';
-    header[38] = 't';
-    header[39] = 'a';
-
-    // Subchunk2Size (NumSamples * NumChannels * BitsPerSample/8)
-    *((int32_t*)&header[40]) = dataSize;
+    esp_http_client_cleanup(client);
+    free(head_final);
 }
