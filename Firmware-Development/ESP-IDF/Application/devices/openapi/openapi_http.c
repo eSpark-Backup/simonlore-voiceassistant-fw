@@ -458,16 +458,19 @@ void process_response(const char* response) {
     cJSON *json = cJSON_Parse(response);
     if (json == NULL) {
         ESP_LOGE(TAG, "Failed to parse JSON response.");
-        return;
     }
-
-    // Extract the "text" field from the "choices" array
-    cJSON *choices = cJSON_GetObjectItemCaseSensitive(json, "choices");
-    if (cJSON_IsArray(choices) && cJSON_GetArraySize(choices) > 0) {
-        cJSON *choice = cJSON_GetArrayItem(choices, 0);
-        cJSON *textField = cJSON_GetObjectItemCaseSensitive(choice, "text");
-        if (cJSON_IsString(textField)) {
-            printf("%s\n", textField->valuestring);
+    else 
+    {
+        // Extract the "text" field from the "choices" array
+        cJSON *choices = cJSON_GetObjectItemCaseSensitive(json, "choices");
+        if (cJSON_IsArray(choices) && cJSON_GetArraySize(choices) > 0) 
+        {
+            cJSON *choice = cJSON_GetArrayItem(choices, 0);
+            cJSON *textField = cJSON_GetObjectItemCaseSensitive(choice, "text");
+            if (cJSON_IsString(textField)) 
+            {
+                printf("%s\n", textField->valuestring);
+            }
         }
     }
 
