@@ -29,7 +29,7 @@ static volatile int task_flag = 0;
 
 const char* TAG = "ESP-SKAINET";
 
-#define RECORD_TIME_SECONDS 32
+#define RECORD_TIME_SECONDS 8
 #define ONE_SECOND_FRAMES 31.25f
 
 void feed_Task(void *arg)
@@ -75,7 +75,6 @@ void detect_Task(void *arg)
     esp_audio_get_play_vol(&volume);
     ESP_LOGE(TAG, "Volume : %d", volume);
 
-    uint8_t header[44];
     int dataSize = (512 * ONE_SECOND_FRAMES * RECORD_TIME_SECONDS);
     int16_t* printer = malloc(dataSize * sizeof(int16_t));
     if (!printer)
@@ -99,7 +98,7 @@ void detect_Task(void *arg)
 
         printf("\nRecording.......!\n");
         size_t totalDataSize = 0;
-        for (size_t i = 0; i < ONE_SECOND_FRAMES * 3; i++)
+        for (size_t i = 0; i < ONE_SECOND_FRAMES * RECORD_TIME_SECONDS; i++)
         {
             afe_fetch_result_t* res = afe_handle->fetch(afe_data); 
             if (!res || res->ret_value == ESP_FAIL) {
@@ -107,19 +106,51 @@ void detect_Task(void *arg)
                 break;
             }
             memcpy(printer + totalDataSize, res->data, res->data_size * sizeof(int16_t));
-            totalDataSize += res->data_size;
-            esp_audio_play(res->data, res->data_size, 1000 / portTICK_RATE_MS);
+            totalDataSize += res->data_size/2;
+            esp_audio_play(res->data, res->data_size,  1000 / portTICK_RATE_MS);
         }
+        totalDataSize *= 2;
         printf("\nStopped!\n");
         task_flag = 0;
-        esp_audio_play(printer, 512 * ONE_SECOND_FRAMES * 3, 3000/ portTICK_RATE_MS);
-        // transcribe_wav_file(printer2, dataSize);
+        // printf("\nPlaying!\n");
+        // esp_audio_play(printer, totalDataSize, 1000/ portTICK_RATE_MS);
+        // printf("\nEnded!\n");
+        char* buf = malloc(MAX_RESPONSE_BUFFER);
+        transcribe_wav_file(printer, totalDataSize, buf);
+
+        // Parse the JSON string
+        cJSON *json = cJSON_Parse(buf);
+
+        if (json == NULL) {
+            fprintf(stderr, "Error parsing JSON: %s\n", cJSON_GetErrorPtr());
+        }
+
+        // Extract the "text" field
+        cJSON *text_field = cJSON_GetObjectItemCaseSensitive(json, "text");
+
+        if (cJSON_IsString(text_field)) {
+            printf("%s\n", text_field->valuestring);
+            char* compBuf = malloc(MAX_RESPONSE_BUFFER);
+            char* data = createJson(  "model", "gpt-3.5-turbo-instruct",
+                                            "prompt", text_field->valuestring,
+                                            NULL);
+            text_completion(data, compBuf);
+            // printf("%s\n", compBuf);
+            process_response(compBuf);
+            free(data);
+            free(compBuf);
+
+        } else {
+            fprintf(stderr, "Failed to extract 'text' field from JSON.\n");
+        }
+
+        // Free the allocated memory for the cJSON object
+        cJSON_Delete(json);
+
+        free(buf);
+        // vTaskDelay(5000 / portTICK_PERIOD_MS);
         task_flag = 1;
         
-        // while(1);
-
-        
-
     }
     if (buff) {
         free(buff);
@@ -140,6 +171,7 @@ void app_main()
 
     ESP_ERROR_CHECK(esp_board_init(16000, 1, 16));
     wifi_init_sta();
+    
     // spiffs_init();
 
     // vTaskDelay(3000 / portTICK_PERIOD_MS);

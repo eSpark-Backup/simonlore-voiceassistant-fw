@@ -1,10 +1,12 @@
 #pragma once
 #include <esp_http_client.h>
+#include <stdarg.h>
 
 #define FILE_PATH "/spiffs/audiow.wav"
 #define API_KEY "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"
 
-#define MAX_HTTP_RECV_BUFFER 1024
+#define MAX_HTTP_RECV_BUFFER 512
+#define MAX_RESPONSE_BUFFER 1024
 
 typedef struct {
     char riff[4];           // "RIFF"
@@ -24,6 +26,8 @@ typedef struct {
 
 void spiffs_init();
 void send_post_request(const char* api_key, const char* file_path);
-esp_err_t esp_http_client_event_handler(esp_http_client_event_t *evt);
 void fillWavHeader(WavHeader *header, int dataSize);
-void transcribe_wav_file(int16_t* stream, uint32_t size);
+void transcribe_wav_file(int16_t* stream, uint32_t size, char* received_buf);
+void text_completion(char* transmit_buf, char* received_buf);
+char* createJson(const char* key, const char* value, ...);
+void process_response(const char* response);
