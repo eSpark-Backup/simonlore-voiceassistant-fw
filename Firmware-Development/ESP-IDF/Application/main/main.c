@@ -22,10 +22,12 @@
 #include "wifi.h"
 #include "nvs_flash.h"
 #include "output.h"
+// #include "mp3_decoder.h"
 
 static esp_afe_sr_iface_t *afe_handle = NULL;
 static esp_afe_sr_data_t *afe_data = NULL;
 static volatile int task_flag = 0;
+char* speech_buf = NULL;
 
 const char* TAG = "ESP-SKAINET";
 
@@ -136,9 +138,27 @@ void detect_Task(void *arg)
                                             NULL);
             text_completion(data, compBuf);
             // printf("%s\n", compBuf);
-            process_response(compBuf);
+            char* completion_str = process_response(compBuf);
+            if (completion_str)
+            {
+                memset(speech_buf, 0, 10);
+                ESP_LOG_BUFFER_HEX(TAG, speech_buf, 10);
+                
+                printf("%s\n", completion_str);
+                char* speechJson = createJson(  "model", "tts-1",
+                                                "input", "The quick brown fox jumped over the lazy dog.",
+                                                "voice", "alloy",
+                                                "response_data", "mp3",
+                                                NULL);
+                printf("%s\n", speechJson);
+                
+                create_speech(speechJson, speech_buf);
+                ESP_LOG_BUFFER_HEX(TAG, speech_buf, 10);
+                free(speechJson);              
+            }    
             free(data);
             free(compBuf);
+            free(completion_str);
 
         } else {
             fprintf(stderr, "Failed to extract 'text' field from JSON.\n");
@@ -171,6 +191,13 @@ void app_main()
 
     ESP_ERROR_CHECK(esp_board_init(16000, 1, 16));
     wifi_init_sta();
+    
+    ESP_LOGE(TAG, "esp_get_free_heap_size - %d", esp_get_free_heap_size());
+    ESP_LOGE(TAG, "esp_get_minimum_free_heap_size: %u", esp_get_minimum_free_heap_size());
+    speech_buf = malloc(60000);
+    ESP_LOGE(TAG, "esp_get_free_heap_size - %d", esp_get_free_heap_size());
+    ESP_LOGE(TAG, "esp_get_minimum_free_heap_size: %u", esp_get_minimum_free_heap_size());
+        
     
     // spiffs_init();
 

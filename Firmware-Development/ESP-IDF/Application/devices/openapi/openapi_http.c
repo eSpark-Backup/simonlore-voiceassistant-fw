@@ -6,7 +6,7 @@
 #include "cJSON.h"
 
 static const char *TAG = "openapi-http";
-
+// #define ESP_LOGD ESP_LOGE 
 char buffer[MAX_HTTP_RECV_BUFFER] = {0};
 
 void spiffs_init() 
@@ -78,7 +78,7 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
              *  Check for chunked encoding is added as the URL for chunked encoding used in this example returns binary data.
              *  However, event handler can also be used in case chunked encoding is used.
              */
-            if (!esp_http_client_is_chunked_response(evt->client)) {
+            // if (!esp_http_client_is_chunked_response(evt->client)) {
                 // If user_data buffer is configured, copy the response into the buffer
                 if (evt->user_data) {
                     memcpy(evt->user_data + output_len, evt->data, evt->data_len);
@@ -94,7 +94,10 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
                     memcpy(output_buffer + output_len, evt->data, evt->data_len);
                 }
                 output_len += evt->data_len;
-            }
+            // }
+            // else{
+            //     ESP_LOGE(TAG, "elseeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
+            // }
 
             break;
         case HTTP_EVENT_ON_FINISH:
@@ -105,6 +108,7 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
                 free(output_buffer);
                 output_buffer = NULL;
             }
+            ESP_LOGE(TAG, "HTTP RESPONSE LENGTH : %d", output_len);
             output_len = 0;
             break;
         case HTTP_EVENT_DISCONNECTED:
@@ -219,84 +223,6 @@ void send_post_request(const char* api_key, const char* file_path)
     esp_http_client_cleanup(client);
     free(head_final);
 }
-
-#if 0
-
-void send_post_request(const char* api_key, int* data, uint16_t size) 
-{
-    esp_http_client_config_t config = {
-        .url = "https://api.openai.com/v1/audio/transcriptions",//"http://192.168.18.191:8000",
-        .method = HTTP_METHOD_POST,
-        .event_handler = _http_event_handler,
-    };
-    esp_http_client_handle_t client = esp_http_client_init(&config);
-    
-    char auth_value[100];
-    snprintf(auth_value, sizeof(auth_value), "Bearer %s", api_key);
-    esp_http_client_set_header(client, "Authorization", auth_value);
-    
-    esp_http_client_set_header(client, "Content-Type", "multipart/form-data; boundary=esp32boundary");
-
-    const char* head_boundary = "--esp32boundary\r\n";
-    const char* head_template = "Content-Disposition: form-data; name=\"file\"; filename=\"%s\"\r\n\r\n";
-    const char* filename = getFileName(file_path);
-    size_t resultSize = strlen(head_template) + strlen(filename);
-
-    // Allocate memory for the final string
-    char *head_final = (char *)malloc(resultSize + 1);
-
-    // Create the final string by formatting the head_template with the filename
-    snprintf(head_final, resultSize + 1, head_template, filename);
-
-    const char* model_boundary = "\r\n--esp32boundary\r\n";
-    const char* model = "Content-Disposition: form-data; name=\"model\"\r\n\r\nwhisper-1\r\n";
-    const char* tail = "--esp32boundary--\r\n";
-
-    // Set content length
-    size_t content_length = strlen(head_boundary) + strlen(head_final) + strlen(model_boundary) + strlen(model) + file_size + strlen(tail);
-    ESP_LOGE("","Length : %d", content_length);
-
-    esp_err_t ret = esp_http_client_open(client, content_length);
-    if (ret != ESP_OK) 
-    {
-        ESP_LOGE(TAG, "Failed to open HTTP connection: %s", esp_err_to_name(ret));
-        esp_http_client_cleanup(client);
-    } 
-    
-    // Start building the request body
-    esp_http_client_write(client, head_boundary, strlen(head_boundary));
-    esp_http_client_write(client, head_final, strlen(head_final));
-
-    // Loop to read and send file content
-    while (file_size > 0) 
-    {
-        esp_http_client_write(client, buffer, read_len);
-        file_size -= read_len;
-    }
-
-    // Add model parameter to the request body
-    esp_http_client_write(client, model_boundary, strlen(model_boundary));
-    esp_http_client_write(client, model, strlen(model));
-    esp_http_client_write(client, tail, strlen(tail));
-
-
-    // Perform HTTP request
-    esp_err_t err = esp_http_client_perform(client);
-    if (err == ESP_OK) 
-    {
-        ESP_LOGI(TAG, "HTTP POST Status = %d, content_length = %d",
-                 esp_http_client_get_status_code(client),
-                 esp_http_client_get_content_length(client));
-    } 
-    else 
-    {
-        ESP_LOGE(TAG, "HTTP POST request failed: %s", esp_err_to_name(err));
-    }
-
-    esp_http_client_cleanup(client);
-    free(head_final);
-}
-#endif
 
 void fillWavHeader(WavHeader *header, int dataSize) {
     // Fill in the header values
@@ -453,10 +379,14 @@ void text_completion(char* transmit_buf, char* received_buf)
     esp_http_client_cleanup(client);
 }
 
-void process_response(const char* response) {
+char* process_response(const char* response) 
+{
+    char* result = NULL;
+
     // Parse the JSON response
     cJSON *json = cJSON_Parse(response);
-    if (json == NULL) {
+    if (json == NULL) 
+    {
         ESP_LOGE(TAG, "Failed to parse JSON response.");
     }
     else 
@@ -469,11 +399,48 @@ void process_response(const char* response) {
             cJSON *textField = cJSON_GetObjectItemCaseSensitive(choice, "text");
             if (cJSON_IsString(textField)) 
             {
-                printf("%s\n", textField->valuestring);
+                // Allocate memory for the result string
+                result = strdup(textField->valuestring);
             }
         }
     }
 
     // Free the allocated memory for the cJSON object
     cJSON_Delete(json);
+
+    return result;
+}
+
+void create_speech(char* transmit_buf, char* received_buf) 
+{
+    esp_http_client_config_t config = 
+    {
+        .url = "https://api.openai.com/v1/audio/speech",
+        .method = HTTP_METHOD_POST,
+        .event_handler = _http_event_handler,
+        .user_data = received_buf,
+    };
+    esp_http_client_handle_t client = esp_http_client_init(&config);
+    
+    char auth_value[100];
+    snprintf(auth_value, sizeof(auth_value), "Bearer %s", API_KEY);
+    esp_http_client_set_header(client, "Authorization", auth_value);
+    esp_http_client_set_header(client, "Content-Type", "application/json");
+
+    esp_http_client_set_post_field(client, transmit_buf, strlen(transmit_buf));
+
+    esp_err_t err = esp_http_client_perform(client);
+
+    if (err == ESP_OK) 
+    {
+        ESP_LOGI(TAG, "HTTP POST Status = %d, content_length = %d",
+                 esp_http_client_get_status_code(client),
+                 esp_http_client_get_content_length(client));
+    } 
+    else 
+    {
+        ESP_LOGE(TAG, "HTTP POST request failed: %s", esp_err_to_name(err));
+    }
+
+    esp_http_client_cleanup(client);
 }
