@@ -22,7 +22,8 @@
 #include "wifi.h"
 #include "nvs_flash.h"
 #include "output.h"
-// #include "mp3_decoder.h"
+#include "mp3_player.h"
+#include "audio_data.h"
 
 static esp_afe_sr_iface_t *afe_handle = NULL;
 static esp_afe_sr_data_t *afe_data = NULL;
@@ -109,7 +110,7 @@ void detect_Task(void *arg)
             }
             memcpy(printer + totalDataSize, res->data, res->data_size * sizeof(int16_t));
             totalDataSize += res->data_size/2;
-            esp_audio_play(res->data, res->data_size,  1000 / portTICK_RATE_MS);
+            // esp_audio_play(res->data, res->data_size,  1000 / portTICK_RATE_MS);
         }
         totalDataSize *= 2;
         printf("\nStopped!\n");
@@ -140,21 +141,22 @@ void detect_Task(void *arg)
             // printf("%s\n", compBuf);
             char* completion_str = process_response(compBuf);
             if (completion_str)
-            {
-                memset(speech_buf, 0, 10);
-                ESP_LOG_BUFFER_HEX(TAG, speech_buf, 10);
-                
+            {           
                 printf("%s\n", completion_str);
                 char* speechJson = createJson(  "model", "tts-1",
-                                                "input", "The quick brown fox jumped over the lazy dog.",
+                                                "input", completion_str,
                                                 "voice", "alloy",
                                                 "response_data", "mp3",
                                                 NULL);
                 printf("%s\n", speechJson);
                 
-                create_speech(speechJson, speech_buf);
-                ESP_LOG_BUFFER_HEX(TAG, speech_buf, 10);
-                free(speechJson);              
+                uint32_t len = create_speech(speechJson, speech_buf);
+                AudioFrame audio = {.data = speech_buf, .len = len};
+                xQueueSend(audioQueue, &audio, portMAX_DELAY);
+
+                // ESP_LOG_BUFFER_HEX(TAG, speech_buf, 10);
+                free(speechJson);  
+                vTaskDelay(10000/ portTICK_RATE_MS);            
             }    
             free(data);
             free(compBuf);
@@ -198,11 +200,25 @@ void app_main()
     ESP_LOGE(TAG, "esp_get_free_heap_size - %d", esp_get_free_heap_size());
     ESP_LOGE(TAG, "esp_get_minimum_free_heap_size: %u", esp_get_minimum_free_heap_size());
         
-    
-    // spiffs_init();
+    audioQueue = xQueueCreate(5, sizeof(AudioFrame));
 
-    // vTaskDelay(3000 / portTICK_PERIOD_MS);
-    // send_post_request(API_KEY, FILE_PATH);
+    // AudioFrame audio = 
+    // {
+    //     .data = audio_data,
+    //     .len = sizeof(audio_data)
+    // };
+    // task(audio);
+    // char* speechJson = createJson(  "model", "tts-1",
+    //                                             "input", "I am and AI model",
+    //                                             "voice", "alloy",
+    //                                             "response_data", "mp3",
+    //                                             NULL);
+    // printf("%s\n", speechJson);
+    
+    // uint32_t len = create_speech(speechJson, speech_buf);
+    // AudioFrame audiow = {.data = speech_buf, .len = len};
+    // task(audiow);
+
     // ESP_ERROR_CHECK(esp_sdcard_init("/sdcard", 10));
 
     srmodel_list_t *models = esp_srmodel_init("model");
@@ -247,6 +263,7 @@ void app_main()
     task_flag = 1;
     xTaskCreatePinnedToCore(&feed_Task, "feed", 8 * 1024, (void*)afe_data, 5, NULL, 0);
     xTaskCreatePinnedToCore(&detect_Task, "detect", 4 * 1024, (void*)afe_data, 5, NULL, 1);
+    xTaskCreatePinnedToCore(&task, "player", 8 * 1024, (void*)afe_data, 5, NULL, 1);
 
     // // You can call afe_handle->destroy to destroy AFE.
     // task_flag = 0;

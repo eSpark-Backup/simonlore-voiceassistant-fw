@@ -8,6 +8,7 @@
 static const char *TAG = "openapi-http";
 // #define ESP_LOGD ESP_LOGE 
 char buffer[MAX_HTTP_RECV_BUFFER] = {0};
+uint32_t size =0;
 
 void spiffs_init() 
 {
@@ -109,6 +110,7 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
                 output_buffer = NULL;
             }
             ESP_LOGE(TAG, "HTTP RESPONSE LENGTH : %d", output_len);
+            size = output_len;
             output_len = 0;
             break;
         case HTTP_EVENT_DISCONNECTED:
@@ -411,7 +413,7 @@ char* process_response(const char* response)
     return result;
 }
 
-void create_speech(char* transmit_buf, char* received_buf) 
+uint32_t create_speech(char* transmit_buf, char* received_buf) 
 {
     esp_http_client_config_t config = 
     {
@@ -443,4 +445,6 @@ void create_speech(char* transmit_buf, char* received_buf)
     }
 
     esp_http_client_cleanup(client);
+
+    return size;
 }

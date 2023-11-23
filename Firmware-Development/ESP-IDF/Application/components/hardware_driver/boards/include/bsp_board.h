@@ -27,21 +27,21 @@
  * 
  */
 
-#if CONFIG_ESP32_S3_BOX_BOARD
+#if CONFIG_ESP32_S3_BOX_BOARD_SKAINET
     #include "esp32_s3_box_board.h"
-#elif CONFIG_ESP32_S3_KORVO_1_V4_0_BOARD
+#elif CONFIG_ESP32_S3_KORVO_1_V4_0_BOARD_SKAINET
     #include "esp32_s3_korvo_1_v4_board.h"
-#elif CONFIG_ESP32_KORVO_V1_1_BOARD
+#elif CONFIG_ESP32_KORVO_V1_1_BOARD_SKAINET
     #include "esp32_korvo_v1_1_board.h"
-#elif CONFIG_ESP32_S3_KORVO_2_V3_0_BOARD
+#elif CONFIG_ESP32_S3_KORVO_2_V3_0_BOARD_SKAINET
     #include "esp32_s3_korvo_2_v3_board.h"
-#elif CONFIG_ESP32_S3_EYE_BOARD
+#elif CONFIG_ESP32_S3_EYE_BOARD_SKAINET
     #include "esp32_s3_eye_board.h"
-#elif CONFIG_ESP_CUSTOM_BOARD
+#elif CONFIG_ESP_CUSTOM_BOARD_SKAINET
     #include "esp_custom_board.h"
-#elif CONFIG_ESP32_S3_BOX_LITE_BOARD
+#elif CONFIG_ESP32_S3_BOX_LITE_BOARD_SKAINET
     #include "esp32_s3_box_lite_board.h"
-#elif CONFIG_ESP32_S3_AFE_RASPBERRY_BOARD
+#elif CONFIG_ESP32_S3_AFE_RASPBERRY_BOARD_SKAINET
     #include "esp32_s3_afe_raspberry_board.h"
 #else 
     #error "Please select type of dev board"

@@ -31,4 +31,4 @@ void transcribe_wav_file(int16_t* stream, uint32_t size, char* received_buf);
 void text_completion(char* transmit_buf, char* received_buf);
 char* createJson(const char* key, const char* value, ...);
 char* process_response(const char* response);
-void create_speech(char* transmit_buf, char* received_buf);
+uint32_t create_speech(char* transmit_buf, char* received_buf);

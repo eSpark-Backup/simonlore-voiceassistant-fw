@@ -1,3 +1,36 @@
 {
-    "idf.adapterTargetName": "esp32s3"
+    "idf.adapterTargetName": "esp32s3",
+    "files.associations": {
+        "sdkconfig.h": "c",
+        "esp32_s3_korvo_2_v3_board.h": "c",
+        "esp32_s3_eye_board.h": "c",
+        "esp32_korvo_v1_1_board.h": "c",
+        "esp32_s3_korvo_1_v4_board.h": "c",
+        "esp32_s3_box_board.h": "c",
+        "esp_board_init.h": "c",
+        "openapi_http.h": "c",
+        "mp3_decoder.h": "c",
+        "nvs_flash.h": "c",
+        "model_path.h": "c",
+        "audio_element.h": "c",
+        "array": "c",
+        "vector": "c",
+        "xstring": "c",
+        "audio_data.h": "c",
+        "mp3_player.h": "c",
+        "deque": "c",
+        "initializer_list": "c",
+        "list": "c",
+        "queue": "c",
+        "random": "c",
+        "regex": "c",
+        "type_traits": "c",
+        "xhash": "c",
+        "xtree": "c",
+        "xutility": "c",
+        "*.inc": "c",
+        "*.ipp": "c",
+        "string.h": "c",
+        "audio_event_iface.h": "c"
+    }
 }

@@ -4,11 +4,13 @@
 # CMakeLists in this exact order for cmake to work correctly
 cmake_minimum_required(VERSION 3.5)
 
+add_compile_options(-fdiagnostics-color=always)
+
 message("ADF_PATH: $ENV{ADF_PATH}")
 message("IDF_PATH: $ENV{IDF_PATH}")
 
+set(EXTRA_COMPONENT_DIRS devices)
 include($ENV{ADF_PATH}/CMakeLists.txt)
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-set(EXTRA_COMPONENT_DIRS devices)
 
 project(test-skainet)
