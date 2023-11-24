@@ -28,12 +28,14 @@
 static esp_afe_sr_iface_t *afe_handle = NULL;
 static esp_afe_sr_data_t *afe_data = NULL;
 static volatile int task_flag = 0;
-char* speech_buf = NULL;
+char* speechBuffer = NULL;
 
 const char* TAG = "ESP-SKAINET";
 
 #define RECORD_TIME_SECONDS 8
 #define ONE_SECOND_FRAMES 31.25f
+
+uint32_t record(int16_t* buff, uint16_t seconds);
 
 void feed_Task(void *arg)
 {
@@ -72,20 +74,22 @@ void detect_Task(void *arg)
     assert(buff);
     printf("------------detect start------------\n");
     int volume = 0;
-    esp_audio_get_play_vol(&volume);
-    ESP_LOGE(TAG, "Volume : %d", volume);
     esp_audio_set_play_vol(70);
     esp_audio_get_play_vol(&volume);
     ESP_LOGE(TAG, "Volume : %d", volume);
 
-    int dataSize = (512 * ONE_SECOND_FRAMES * RECORD_TIME_SECONDS);
-    int16_t* printer = malloc(dataSize * sizeof(int16_t));
-    if (!printer)
+    int dataSize = (afe_chunksize * ONE_SECOND_FRAMES * RECORD_TIME_SECONDS);
+    int16_t* audioBuffer = malloc(dataSize * sizeof(int16_t));
+    char* transcribeResponseBuf = malloc(MAX_RESPONSE_BUFFER);
+    char* completionResponseBuf = malloc(MAX_RESPONSE_BUFFER);
+    if (!audioBuffer || !transcribeResponseBuf || !completionResponseBuf)
     {
         ESP_LOGE(TAG, "memory not allocated");
+        task_flag =0;
     }
 
-    while (task_flag) {
+    while (task_flag) 
+    {
         // afe_fetch_result_t* res = afe_handle->fetch(afe_data); 
         // if (!res || res->ret_value == ESP_FAIL) {
         //     printf("fetch error!\n");
@@ -99,82 +103,46 @@ void detect_Task(void *arg)
         // }
         // esp_audio_play(res->data, res->data_size, 1000/ portTICK_RATE_MS);
 
-        printf("\nRecording.......!\n");
-        size_t totalDataSize = 0;
-        for (size_t i = 0; i < ONE_SECOND_FRAMES * RECORD_TIME_SECONDS; i++)
-        {
-            afe_fetch_result_t* res = afe_handle->fetch(afe_data); 
-            if (!res || res->ret_value == ESP_FAIL) {
-                printf("fetch error!\n");
-                break;
-            }
-            memcpy(printer + totalDataSize, res->data, res->data_size * sizeof(int16_t));
-            totalDataSize += res->data_size/2;
-            // esp_audio_play(res->data, res->data_size,  1000 / portTICK_RATE_MS);
-        }
-        totalDataSize *= 2;
-        printf("\nStopped!\n");
+        uint32_t audioSize = record(audioBuffer, RECORD_TIME_SECONDS);
         task_flag = 0;
-        // printf("\nPlaying!\n");
-        // esp_audio_play(printer, totalDataSize, 1000/ portTICK_RATE_MS);
-        // printf("\nEnded!\n");
-        char* buf = malloc(MAX_RESPONSE_BUFFER);
-        transcribe_wav_file(printer, totalDataSize, buf);
+        
+        transcribe_wav_file(audioBuffer, audioSize, transcribeResponseBuf);
+        char* transcribedText = processTranscribeResponse(transcribeResponseBuf); // deallocation needed
+        
+        if (transcribedText)
+        {    
+            char* completionRequestJson = createJson(  "model", "gpt-3.5-turbo-instruct",
+                                            "prompt", transcribedText,
+                                            NULL); // deallocation needed
+            ESP_LOGI(TAG, "%s\n", completionRequestJson);                             
+            text_completion(completionRequestJson, completionResponseBuf);
 
-        // Parse the JSON string
-        cJSON *json = cJSON_Parse(buf);
-
-        if (json == NULL) {
-            fprintf(stderr, "Error parsing JSON: %s\n", cJSON_GetErrorPtr());
-        }
-
-        // Extract the "text" field
-        cJSON *text_field = cJSON_GetObjectItemCaseSensitive(json, "text");
-
-        if (cJSON_IsString(text_field)) {
-            printf("%s\n", text_field->valuestring);
-            char* compBuf = malloc(MAX_RESPONSE_BUFFER);
-            char* data = createJson(  "model", "gpt-3.5-turbo-instruct",
-                                            "prompt", text_field->valuestring,
-                                            NULL);
-            text_completion(data, compBuf);
-            // printf("%s\n", compBuf);
-            char* completion_str = process_response(compBuf);
-            if (completion_str)
-            {           
-                printf("%s\n", completion_str);
-                char* speechJson = createJson(  "model", "tts-1",
-                                                "input", completion_str,
+            char* completionText = process_response(completionResponseBuf); // deallocation needed
+            if (completionText)
+            {
+                char* speechRequestJson = createJson(  "model", "tts-1",
+                                                "input", completionText,
                                                 "voice", "alloy",
                                                 "response_data", "mp3",
-                                                NULL);
-                printf("%s\n", speechJson);
+                                                NULL); // deallocation needed
+                ESP_LOGI(TAG, "%s\n", speechRequestJson); 
                 
-                uint32_t len = create_speech(speechJson, speech_buf);
-                AudioFrame audio = {.data = speech_buf, .len = len};
+                uint32_t len = create_speech(speechRequestJson, speechBuffer);
+                AudioFrame audio = {.data = audio_data, .len = sizeof(audio_data)};
                 xQueueSend(audioQueue, &audio, portMAX_DELAY);
 
-                // ESP_LOG_BUFFER_HEX(TAG, speech_buf, 10);
-                free(speechJson);  
+                free(speechRequestJson);  
                 vTaskDelay(10000/ portTICK_RATE_MS);            
             }    
-            free(data);
-            free(compBuf);
-            free(completion_str);
-
-        } else {
-            fprintf(stderr, "Failed to extract 'text' field from JSON.\n");
+            free(completionRequestJson);
+            free(completionText);
         }
-
-        // Free the allocated memory for the cJSON object
-        cJSON_Delete(json);
-
-        free(buf);
-        // vTaskDelay(5000 / portTICK_PERIOD_MS);
-        task_flag = 1;
-        
+        free(transcribedText);
+        task_flag = 1;   
     }
-    if (buff) {
+
+    if (buff) 
+    {
         free(buff);
         buff = NULL;
     }
@@ -196,28 +164,11 @@ void app_main()
     
     ESP_LOGE(TAG, "esp_get_free_heap_size - %d", esp_get_free_heap_size());
     ESP_LOGE(TAG, "esp_get_minimum_free_heap_size: %u", esp_get_minimum_free_heap_size());
-    speech_buf = malloc(60000);
+    speechBuffer = malloc(300 * 1024);
     ESP_LOGE(TAG, "esp_get_free_heap_size - %d", esp_get_free_heap_size());
     ESP_LOGE(TAG, "esp_get_minimum_free_heap_size: %u", esp_get_minimum_free_heap_size());
         
     audioQueue = xQueueCreate(5, sizeof(AudioFrame));
-
-    // AudioFrame audio = 
-    // {
-    //     .data = audio_data,
-    //     .len = sizeof(audio_data)
-    // };
-    // task(audio);
-    // char* speechJson = createJson(  "model", "tts-1",
-    //                                             "input", "I am and AI model",
-    //                                             "voice", "alloy",
-    //                                             "response_data", "mp3",
-    //                                             NULL);
-    // printf("%s\n", speechJson);
-    
-    // uint32_t len = create_speech(speechJson, speech_buf);
-    // AudioFrame audiow = {.data = speech_buf, .len = len};
-    // task(audiow);
 
     // ESP_ERROR_CHECK(esp_sdcard_init("/sdcard", 10));
 
@@ -263,7 +214,9 @@ void app_main()
     task_flag = 1;
     xTaskCreatePinnedToCore(&feed_Task, "feed", 8 * 1024, (void*)afe_data, 5, NULL, 0);
     xTaskCreatePinnedToCore(&detect_Task, "detect", 4 * 1024, (void*)afe_data, 5, NULL, 1);
-    xTaskCreatePinnedToCore(&task, "player", 8 * 1024, (void*)afe_data, 5, NULL, 1);
+    xTaskCreate(&task, "player", 20 * 1024, NULL, 10, NULL);
+    // AudioFrame audio = {.data = audio_data, .len = sizeof(audio_data)};
+    // xQueueSend(audioQueue, &audio, portMAX_DELAY);
 
     // // You can call afe_handle->destroy to destroy AFE.
     // task_flag = 0;
@@ -272,4 +225,25 @@ void app_main()
     // afe_handle->destroy(afe_data);
     // afe_data = NULL;
     // printf("successful\n");
+}
+
+uint32_t record(int16_t* buff, uint16_t seconds)
+{
+    printf("\nRecording.......!\n");
+    size_t totalDataSize = 0;
+    for (size_t i = 0; i < ONE_SECOND_FRAMES * seconds; i++)
+    {
+        afe_fetch_result_t* res = afe_handle->fetch(afe_data); 
+        if (!res || res->ret_value == ESP_FAIL) {
+            printf("fetch error!\n");
+            break;
+        }
+        memcpy(buff + totalDataSize, res->data, res->data_size * sizeof(int16_t));
+        totalDataSize += res->data_size/2;
+        // esp_audio_play(res->data, res->data_size,  1000 / portTICK_RATE_MS);
+    }
+    totalDataSize *= 2;
+    printf("\nStopped!\n");
+
+    return totalDataSize;
 }

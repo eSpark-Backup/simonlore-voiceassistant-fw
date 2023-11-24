@@ -32,3 +32,4 @@ void text_completion(char* transmit_buf, char* received_buf);
 char* createJson(const char* key, const char* value, ...);
 char* process_response(const char* response);
 uint32_t create_speech(char* transmit_buf, char* received_buf);
+char* processTranscribeResponse(char* response);

@@ -401,6 +401,7 @@ char* process_response(const char* response)
             cJSON *textField = cJSON_GetObjectItemCaseSensitive(choice, "text");
             if (cJSON_IsString(textField)) 
             {
+                ESP_LOGI(TAG, "%s\n", textField->valuestring);
                 // Allocate memory for the result string
                 result = strdup(textField->valuestring);
             }
@@ -447,4 +448,38 @@ uint32_t create_speech(char* transmit_buf, char* received_buf)
     esp_http_client_cleanup(client);
 
     return size;
+}
+
+char* processTranscribeResponse(char* response)
+{
+    char* result = NULL;
+    
+    // Parse the JSON string
+    cJSON *json = cJSON_Parse(response);
+
+    if (json == NULL) 
+    {
+        fprintf(stderr, "Error parsing JSON: %s\n", cJSON_GetErrorPtr());
+    }
+    else
+    {
+        // Extract the "text" field
+        cJSON *textField = cJSON_GetObjectItemCaseSensitive(json, "text");
+
+        if (cJSON_IsString(textField)) 
+        {
+            ESP_LOGI(TAG, "%s\n", textField->valuestring);
+            // Allocate memory for the result string
+            result = strdup(textField->valuestring);
+        } 
+        else 
+        {
+            fprintf(stderr, "Failed to extract 'text' field from JSON.\n");
+        }
+    }
+
+    // Free the allocated memory for the cJSON object
+    cJSON_Delete(json);
+
+    return result;
 }

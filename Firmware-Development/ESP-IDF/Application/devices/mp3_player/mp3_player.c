@@ -97,7 +97,8 @@ void task(void* pv)
     audio_pipeline_run(pipeline);
 
     ESP_LOGI(TAG, "[ 6 ] Listen for all pipeline events");
-    while (1) {
+    while (1) 
+    {
         audio_event_iface_msg_t msg;
         esp_err_t ret = audio_event_iface_listen(evt, &msg, portMAX_DELAY);
         if (ret != ESP_OK) {
@@ -150,4 +151,6 @@ void task(void* pv)
     audio_element_deinit(i2s_stream_writer);
     audio_element_deinit(mp3_decoder);
     esp_periph_set_destroy(set);
+
+    vTaskDelete(NULL);
 }
