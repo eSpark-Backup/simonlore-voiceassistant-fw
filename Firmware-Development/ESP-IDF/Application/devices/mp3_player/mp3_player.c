@@ -9,6 +9,7 @@
 #include "mp3_decoder.h"
 #include "esp_peripherals.h"
 #include "mp3_player.h"
+#include "board.h"
 
 QueueHandle_t audioQueue = NULL;
 
@@ -45,7 +46,7 @@ void task(void* pv)
     audio_pipeline_handle_t pipeline;
     audio_element_handle_t i2s_stream_writer, mp3_decoder;
 
-    esp_log_level_set("*", ESP_LOG_WARN);
+    // esp_log_level_set("*", ESP_LOG_WARN);
     esp_log_level_set(TAG, ESP_LOG_INFO);
 
     // Initialize peripherals management
@@ -53,6 +54,8 @@ void task(void* pv)
     esp_periph_set_handle_t set = esp_periph_set_init(&periph_cfg);
 
     ESP_LOGI(TAG, "[ 2 ] Start codec chip");
+    // audio_board_handle_t board_handle = audio_board_init();
+    // audio_hal_ctrl_codec(board_handle->audio_hal, AUDIO_HAL_CODEC_MODE_DECODE, AUDIO_HAL_CTRL_START);
 
     ESP_LOGI(TAG, "[3.0] Create audio pipeline for playback");
     audio_pipeline_cfg_t pipeline_cfg = DEFAULT_AUDIO_PIPELINE_CONFIG();

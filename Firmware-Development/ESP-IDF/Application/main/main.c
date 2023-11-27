@@ -24,6 +24,7 @@
 #include "output.h"
 #include "mp3_player.h"
 #include "audio_data.h"
+#include "board.h"
 
 static esp_afe_sr_iface_t *afe_handle = NULL;
 static esp_afe_sr_data_t *afe_data = NULL;
@@ -73,10 +74,10 @@ void detect_Task(void *arg)
     int16_t *buff = malloc(afe_chunksize * sizeof(int16_t));
     assert(buff);
     printf("------------detect start------------\n");
-    int volume = 0;
-    esp_audio_set_play_vol(70);
-    esp_audio_get_play_vol(&volume);
-    ESP_LOGE(TAG, "Volume : %d", volume);
+    // int volume = 0;
+    // esp_audio_set_play_vol(70);
+    // esp_audio_get_play_vol(&volume);
+    // ESP_LOGE(TAG, "Volume : %d", volume);
 
     int dataSize = (afe_chunksize * ONE_SECOND_FRAMES * RECORD_TIME_SECONDS);
     int16_t* audioBuffer = malloc(dataSize * sizeof(int16_t));
@@ -104,9 +105,11 @@ void detect_Task(void *arg)
         // esp_audio_play(res->data, res->data_size, 1000/ portTICK_RATE_MS);
 
         uint32_t audioSize = record(audioBuffer, RECORD_TIME_SECONDS);
+
         task_flag = 0;
         
         transcribe_wav_file(audioBuffer, audioSize, transcribeResponseBuf);
+        ESP_LOGI(TAG, "%s", transcribeResponseBuf);
         char* transcribedText = processTranscribeResponse(transcribeResponseBuf); // deallocation needed
         
         if (transcribedText)
@@ -128,9 +131,12 @@ void detect_Task(void *arg)
                 ESP_LOGI(TAG, "%s\n", speechRequestJson); 
                 
                 uint32_t len = create_speech(speechRequestJson, speechBuffer);
-                AudioFrame audio = {.data = audio_data, .len = sizeof(audio_data)};
-                xQueueSend(audioQueue, &audio, portMAX_DELAY);
-
+                ESP_LOGE(TAG, "free block %d ",heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM));
+                // AudioFrame audio = {.data = audio_data, .len = sizeof(audio_data)};
+                // xQueueSend(audioQueue, &audio, portMAX_DELAY);
+                xTaskCreate(&task, "player", 20 * 1024, NULL, 10, NULL); 
+                // char* testBuffer = malloc(100000);
+                // ESP_LOG_BUFFER_HEX(TAG, testBuffer, 100);
                 free(speechRequestJson);  
                 vTaskDelay(10000/ portTICK_RATE_MS);            
             }    
@@ -212,9 +218,12 @@ void app_main()
     afe_data = afe_handle->create_from_config(&afe_config);
     
     task_flag = 1;
+    // esp_log_level_set("*", ESP_LOG_WARN);
+    ESP_LOGI(TAG, "[ 2 ] Start codec chip");
+    // audio_board_handle_t board_handle = audio_board_init();
+    // audio_hal_ctrl_codec(board_handle->audio_hal, AUDIO_HAL_CODEC_MODE_DECODE, AUDIO_HAL_CTRL_START);
     xTaskCreatePinnedToCore(&feed_Task, "feed", 8 * 1024, (void*)afe_data, 5, NULL, 0);
     xTaskCreatePinnedToCore(&detect_Task, "detect", 4 * 1024, (void*)afe_data, 5, NULL, 1);
-    xTaskCreate(&task, "player", 20 * 1024, NULL, 10, NULL);
     // AudioFrame audio = {.data = audio_data, .len = sizeof(audio_data)};
     // xQueueSend(audioQueue, &audio, portMAX_DELAY);
 
@@ -231,7 +240,7 @@ uint32_t record(int16_t* buff, uint16_t seconds)
 {
     printf("\nRecording.......!\n");
     size_t totalDataSize = 0;
-    for (size_t i = 0; i < ONE_SECOND_FRAMES * seconds; i++)
+    for (size_t i = 0; i < ((ONE_SECOND_FRAMES * seconds) - 1); i++)
     {
         afe_fetch_result_t* res = afe_handle->fetch(afe_data); 
         if (!res || res->ret_value == ESP_FAIL) {

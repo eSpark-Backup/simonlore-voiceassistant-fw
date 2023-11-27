@@ -61,19 +61,32 @@ static esp_codec_dev_handle_t play_dev = NULL;
 
 esp_err_t bsp_i2c_init(i2c_port_t i2c_num, uint32_t clk_speed)
 {
+    // i2c_config_t i2c_cfg = {
+    //     .mode = I2C_MODE_MASTER,
+    //     .scl_io_num = GPIO_I2C_SCL,
+    //     .sda_io_num = GPIO_I2C_SDA,
+    //     .scl_pullup_en = GPIO_PULLUP_ENABLE,
+    //     .sda_pullup_en = GPIO_PULLUP_ENABLE,
+    //     .master.clk_speed = clk_speed,
+    // };
+    // esp_err_t ret = i2c_param_config(i2c_num, &i2c_cfg);
+    // if (ret != ESP_OK) {
+    //     return ESP_FAIL;
+    // }
+    // return i2c_driver_install(i2c_num, i2c_cfg.mode, 0, 0, 0);
+
     i2c_config_t i2c_cfg = {
         .mode = I2C_MODE_MASTER,
-        .scl_io_num = GPIO_I2C_SCL,
-        .sda_io_num = GPIO_I2C_SDA,
-        .scl_pullup_en = GPIO_PULLUP_ENABLE,
         .sda_pullup_en = GPIO_PULLUP_ENABLE,
+        .scl_pullup_en = GPIO_PULLUP_ENABLE,
+        .sda_io_num = GPIO_NUM_1,
+        .scl_io_num = GPIO_NUM_2,
         .master.clk_speed = clk_speed,
     };
-    esp_err_t ret = i2c_param_config(i2c_num, &i2c_cfg);
-    if (ret != ESP_OK) {
-        return ESP_FAIL;
-    }
-    return i2c_driver_install(i2c_num, i2c_cfg.mode, 0, 0, 0);
+
+    i2c_bus_create(i2c_num, &i2c_cfg);
+
+    return ESP_OK;
 }
 
 esp_err_t bsp_codec_adc_init(int sample_rate)
@@ -366,7 +379,7 @@ static esp_err_t bsp_codec_init(int adc_sample_rate, int dac_sample_rate, int da
     esp_err_t ret_val = ESP_OK;
 
     ret_val |= bsp_codec_adc_init(adc_sample_rate);
-    ret_val |= bsp_codec_dac_init(dac_sample_rate, dac_channel_format, dac_bits_per_chan);
+    // ret_val |= bsp_codec_dac_init(dac_sample_rate, dac_channel_format, dac_bits_per_chan);
     return ret_val;
 }
 
@@ -419,7 +432,7 @@ esp_err_t bsp_board_init(uint32_t sample_rate, int channel_format, int bits_per_
 {
     /*!< Initialize I2C bus, used for audio codec*/
     bsp_i2c_init(I2C_NUM, I2C_CLK);
-    bsp_i2s_init(I2S_NUM_0, sample_rate, channel_format, bits_per_chan);
+    // bsp_i2s_init(I2S_NUM_0, sample_rate, channel_format, bits_per_chan);
     bsp_i2s_init(I2S_NUM_1, 16000, 2, 32);
 
     bsp_codec_init(16000, sample_rate, channel_format, bits_per_chan);

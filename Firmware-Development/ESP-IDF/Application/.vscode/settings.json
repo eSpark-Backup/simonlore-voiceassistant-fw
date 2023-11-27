@@ -34,6 +34,8 @@
         "audio_event_iface.h": "c",
         "chrono": "c",
         "codecvt": "c",
-        "xlocale": "c"
+        "xlocale": "c",
+        "esp_peripherals.h": "c",
+        "board.h": "c"
     }
 }
