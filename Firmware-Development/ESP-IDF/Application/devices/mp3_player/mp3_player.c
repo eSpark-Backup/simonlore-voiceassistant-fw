@@ -11,8 +11,6 @@
 #include "mp3_player.h"
 #include "board.h"
 
-QueueHandle_t audioQueue = NULL;
-
 static const char *TAG = "mp3_player";
 
 static int mp3_music_read_cb(audio_element_handle_t el, char *buf, int len, TickType_t wait_time, void *ctx)
@@ -36,13 +34,8 @@ static int mp3_music_read_cb(audio_element_handle_t el, char *buf, int len, Tick
     return read_size;
 }
 
-void task(void* pv)
+void task(AudioFrame audio)
 {
-    AudioFrame audio;
-    
-    ESP_LOGE(TAG, "esp_get_free_heap_size - %d", esp_get_free_heap_size());
-    ESP_LOGE(TAG, "esp_get_minimum_free_heap_size: %u", esp_get_minimum_free_heap_size());
-
     audio_pipeline_handle_t pipeline;
     audio_element_handle_t i2s_stream_writer, mp3_decoder;
 
@@ -54,8 +47,6 @@ void task(void* pv)
     esp_periph_set_handle_t set = esp_periph_set_init(&periph_cfg);
 
     ESP_LOGI(TAG, "[ 2 ] Start codec chip");
-    // audio_board_handle_t board_handle = audio_board_init();
-    // audio_hal_ctrl_codec(board_handle->audio_hal, AUDIO_HAL_CODEC_MODE_DECODE, AUDIO_HAL_CTRL_START);
 
     ESP_LOGI(TAG, "[3.0] Create audio pipeline for playback");
     audio_pipeline_cfg_t pipeline_cfg = DEFAULT_AUDIO_PIPELINE_CONFIG();
@@ -95,7 +86,6 @@ void task(void* pv)
     ESP_LOGI(TAG, "[4.2] Listening event from peripherals");
     audio_event_iface_set_listener(esp_periph_set_get_event_iface(set), evt);
 
-    xQueueReceive(audioQueue, &audio, portMAX_DELAY);
     ESP_LOGI(TAG, "[ 5 ] Start audio_pipeline");
     audio_pipeline_run(pipeline);
 
@@ -154,6 +144,4 @@ void task(void* pv)
     audio_element_deinit(i2s_stream_writer);
     audio_element_deinit(mp3_decoder);
     esp_periph_set_destroy(set);
-
-    vTaskDelete(NULL);
 }

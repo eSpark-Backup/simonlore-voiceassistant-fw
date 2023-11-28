@@ -33,7 +33,7 @@ char* speechBuffer = NULL;
 
 const char* TAG = "ESP-SKAINET";
 
-#define RECORD_TIME_SECONDS 8
+#define RECORD_TIME_SECONDS 4
 #define ONE_SECOND_FRAMES 31.25f
 
 uint32_t record(int16_t* buff, uint16_t seconds);
@@ -131,14 +131,11 @@ void detect_Task(void *arg)
                 ESP_LOGI(TAG, "%s\n", speechRequestJson); 
                 
                 uint32_t len = create_speech(speechRequestJson, speechBuffer);
-                ESP_LOGE(TAG, "free block %d ",heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM));
-                // AudioFrame audio = {.data = audio_data, .len = sizeof(audio_data)};
-                // xQueueSend(audioQueue, &audio, portMAX_DELAY);
-                xTaskCreate(&task, "player", 20 * 1024, NULL, 10, NULL); 
-                // char* testBuffer = malloc(100000);
-                // ESP_LOG_BUFFER_HEX(TAG, testBuffer, 100);
-                free(speechRequestJson);  
-                vTaskDelay(10000/ portTICK_RATE_MS);            
+                // ESP_LOGE(TAG, "free block %d ",heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM));
+                AudioFrame audio = {.data = speechBuffer, .len = len};
+                task(audio);
+
+                free(speechRequestJson);           
             }    
             free(completionRequestJson);
             free(completionText);
@@ -173,8 +170,6 @@ void app_main()
     speechBuffer = malloc(300 * 1024);
     ESP_LOGE(TAG, "esp_get_free_heap_size - %d", esp_get_free_heap_size());
     ESP_LOGE(TAG, "esp_get_minimum_free_heap_size: %u", esp_get_minimum_free_heap_size());
-        
-    audioQueue = xQueueCreate(5, sizeof(AudioFrame));
 
     // ESP_ERROR_CHECK(esp_sdcard_init("/sdcard", 10));
 
@@ -220,12 +215,14 @@ void app_main()
     task_flag = 1;
     // esp_log_level_set("*", ESP_LOG_WARN);
     ESP_LOGI(TAG, "[ 2 ] Start codec chip");
-    // audio_board_handle_t board_handle = audio_board_init();
-    // audio_hal_ctrl_codec(board_handle->audio_hal, AUDIO_HAL_CODEC_MODE_DECODE, AUDIO_HAL_CTRL_START);
+    audio_board_handle_t board_handle = audio_board_init();
+    board_handle->audio_hal->audio_codec_set_volume(100);
+    audio_hal_ctrl_codec(board_handle->audio_hal, AUDIO_HAL_CODEC_MODE_DECODE, AUDIO_HAL_CTRL_START);
+    AudioFrame audio = {.data = audio_data, .len = sizeof(audio_data)};
+    task(audio);
+
     xTaskCreatePinnedToCore(&feed_Task, "feed", 8 * 1024, (void*)afe_data, 5, NULL, 0);
     xTaskCreatePinnedToCore(&detect_Task, "detect", 4 * 1024, (void*)afe_data, 5, NULL, 1);
-    // AudioFrame audio = {.data = audio_data, .len = sizeof(audio_data)};
-    // xQueueSend(audioQueue, &audio, portMAX_DELAY);
 
     // // You can call afe_handle->destroy to destroy AFE.
     // task_flag = 0;
