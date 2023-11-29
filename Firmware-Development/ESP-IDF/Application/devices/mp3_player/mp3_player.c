@@ -34,7 +34,7 @@ static int mp3_music_read_cb(audio_element_handle_t el, char *buf, int len, Tick
     return read_size;
 }
 
-void task(AudioFrame audio)
+void play(AudioFrame audio)
 {
     audio_pipeline_handle_t pipeline;
     audio_element_handle_t i2s_stream_writer, mp3_decoder;

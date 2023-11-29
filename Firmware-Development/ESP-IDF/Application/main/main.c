@@ -25,18 +25,20 @@
 #include "mp3_player.h"
 #include "audio_data.h"
 #include "board.h"
+#include "input_key_service.h"
 
 static esp_afe_sr_iface_t *afe_handle = NULL;
 static esp_afe_sr_data_t *afe_data = NULL;
 static volatile int task_flag = 0;
+bool recordStatus = false;
 char* speechBuffer = NULL;
-
 const char* TAG = "ESP-SKAINET";
 
 #define RECORD_TIME_SECONDS 4
 #define ONE_SECOND_FRAMES 31.25f
 
 uint32_t record(int16_t* buff, uint16_t seconds);
+static esp_err_t input_key_service_cb(periph_service_handle_t handle, periph_service_event_t *evt, void *ctx);
 
 void feed_Task(void *arg)
 {
@@ -89,7 +91,7 @@ void detect_Task(void *arg)
         task_flag =0;
     }
 
-    while (task_flag) 
+    while (1) 
     {
         // afe_fetch_result_t* res = afe_handle->fetch(afe_data); 
         // if (!res || res->ret_value == ESP_FAIL) {
@@ -103,7 +105,9 @@ void detect_Task(void *arg)
         //     printf("-----------LISTENING-----------\n");
         // }
         // esp_audio_play(res->data, res->data_size, 1000/ portTICK_RATE_MS);
-
+        task_flag = 0;
+        while (!recordStatus) { vTaskDelay(1000/ portTICK_RATE_MS); }
+        task_flag = 1;
         uint32_t audioSize = record(audioBuffer, RECORD_TIME_SECONDS);
 
         task_flag = 0;
@@ -133,7 +137,7 @@ void detect_Task(void *arg)
                 uint32_t len = create_speech(speechRequestJson, speechBuffer);
                 // ESP_LOGE(TAG, "free block %d ",heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM));
                 AudioFrame audio = {.data = speechBuffer, .len = len};
-                task(audio);
+                play(audio);
 
                 free(speechRequestJson);           
             }    
@@ -218,8 +222,21 @@ void app_main()
     audio_board_handle_t board_handle = audio_board_init();
     board_handle->audio_hal->audio_codec_set_volume(100);
     audio_hal_ctrl_codec(board_handle->audio_hal, AUDIO_HAL_CODEC_MODE_DECODE, AUDIO_HAL_CTRL_START);
+
+    // Initialize Button peripheral
+    esp_periph_config_t periph_cfg = DEFAULT_ESP_PERIPH_SET_CONFIG();
+    esp_periph_set_handle_t set = esp_periph_set_init(&periph_cfg);
+
+    audio_board_key_init(set);
+    input_key_service_info_t input_key_info[] = INPUT_KEY_DEFAULT_INFO();
+    input_key_service_cfg_t input_cfg = INPUT_KEY_SERVICE_DEFAULT_CONFIG();
+    input_cfg.handle = set;
+    periph_service_handle_t input_ser = input_key_service_create(&input_cfg);
+    input_key_service_add_key(input_ser, input_key_info, INPUT_KEY_NUM);
+    periph_service_set_callback(input_ser, input_key_service_cb, NULL);
+    
     AudioFrame audio = {.data = audio_data, .len = sizeof(audio_data)};
-    task(audio);
+    play(audio);
 
     xTaskCreatePinnedToCore(&feed_Task, "feed", 8 * 1024, (void*)afe_data, 5, NULL, 0);
     xTaskCreatePinnedToCore(&detect_Task, "detect", 4 * 1024, (void*)afe_data, 5, NULL, 1);
@@ -244,12 +261,39 @@ uint32_t record(int16_t* buff, uint16_t seconds)
             printf("fetch error!\n");
             break;
         }
+        if (recordStatus == false)
+        {
+            break;
+        }
         memcpy(buff + totalDataSize, res->data, res->data_size * sizeof(int16_t));
         totalDataSize += res->data_size/2;
         // esp_audio_play(res->data, res->data_size,  1000 / portTICK_RATE_MS);
     }
     totalDataSize *= 2;
     printf("\nStopped!\n");
-
+    recordStatus =0;
     return totalDataSize;
+}
+
+static esp_err_t input_key_service_cb(periph_service_handle_t handle, periph_service_event_t *evt, void *ctx)
+{
+    if (evt->type == INPUT_KEY_SERVICE_ACTION_CLICK) {
+        switch ((int)evt->data) {
+            case INPUT_KEY_USER_ID_MODE:
+                ESP_LOGI(TAG, "[ * ] [Set] input key event, change mode ...");
+                break;
+            case INPUT_KEY_USER_ID_REC:
+                ESP_LOGI(TAG, "[ * ] [Rec] input key event, start/stop recording ...");
+                recordStatus = !recordStatus;
+                break;
+        }
+    } else if (evt->type == INPUT_KEY_SERVICE_ACTION_CLICK_RELEASE || evt->type == INPUT_KEY_SERVICE_ACTION_PRESS_RELEASE) {
+        switch ((int)evt->data) {
+            case INPUT_KEY_USER_ID_REC:
+                ESP_LOGI(TAG, "[ * ] [Rec] key released, start/stop key released ...");
+                break;
+        }
+    }
+
+    return ESP_OK;
 }

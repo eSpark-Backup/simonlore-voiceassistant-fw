@@ -11,4 +11,4 @@ typedef struct
     uint32_t len;
 } AudioFrame;
 
-void task(AudioFrame audio);
+void play(AudioFrame audio);
