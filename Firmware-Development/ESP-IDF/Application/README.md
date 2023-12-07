@@ -18,7 +18,7 @@
 
 5. Choose the path where ESP-IDF is installed (Example: `C:\Users\{Username}\esp`).
 
-6. A progress bar will be shown at the bottom left of the screen.
+6. A progress bar will be shown at the bottom right of the screen.
 ![image](https://github.com/eSpark-Consultants/simonlore-voiceassistant-firmware/assets/106241042/c5efc79b-731b-4fd9-a4db-b2bf3faaf6fe)
 
 
