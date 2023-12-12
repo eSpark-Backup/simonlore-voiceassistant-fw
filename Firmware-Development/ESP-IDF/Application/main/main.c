@@ -26,6 +26,8 @@
 #include "board.h"
 #include "input_key_service.h"
 #include "WifiSoftApp.h"
+#include "TelemetrySend.h"
+#include <cJSON.h>
 
 
 static esp_afe_sr_iface_t *afe_handle = NULL;
@@ -166,10 +168,14 @@ void app_main()
       ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
-
+    
     ESP_ERROR_CHECK(esp_board_init(16000, 1, 16));
     printf("Before softApp\n");
     softap();
+
+    // TelemetryData telemetryData = {5,10};
+    send_telemetry_data();
+
     ESP_LOGE(TAG, "esp_get_free_heap_size - %d", esp_get_free_heap_size());
     ESP_LOGE(TAG, "esp_get_minimum_free_heap_size: %u", esp_get_minimum_free_heap_size());
     speechBuffer = malloc(300 * 1024);
