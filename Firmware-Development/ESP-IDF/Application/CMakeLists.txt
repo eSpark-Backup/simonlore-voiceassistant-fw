@@ -8,7 +8,7 @@ add_compile_options(-fdiagnostics-color=always)
 
 message("ADF_PATH: $ENV{ADF_PATH}")
 message("IDF_PATH: $ENV{IDF_PATH}")
-
+set(EXTRA_COMPONENT_DIRS $ENV{IDF_PATH}/examples/common_components/qrcode)
 set(EXTRA_COMPONENT_DIRS devices)
 include($ENV{ADF_PATH}/CMakeLists.txt)
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)

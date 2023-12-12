@@ -19,13 +19,14 @@
 #include "string.h"
 #include "esp_log.h"
 #include "openapi_http.h"
-#include "wifi.h"
 #include "nvs_flash.h"
 #include "output.h"
 #include "mp3_player.h"
 #include "audio_data.h"
 #include "board.h"
 #include "input_key_service.h"
+#include "WifiSoftApp.h"
+
 
 static esp_afe_sr_iface_t *afe_handle = NULL;
 static esp_afe_sr_data_t *afe_data = NULL;
@@ -167,8 +168,8 @@ void app_main()
     ESP_ERROR_CHECK(ret);
 
     ESP_ERROR_CHECK(esp_board_init(16000, 1, 16));
-    wifi_init_sta();
-    
+    printf("Before softApp\n");
+    softap();
     ESP_LOGE(TAG, "esp_get_free_heap_size - %d", esp_get_free_heap_size());
     ESP_LOGE(TAG, "esp_get_minimum_free_heap_size: %u", esp_get_minimum_free_heap_size());
     speechBuffer = malloc(300 * 1024);
