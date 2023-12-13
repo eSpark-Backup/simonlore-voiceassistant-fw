@@ -1,5 +1,5 @@
 set(srcs
-    esp_skainet_player.c
+    esp_skainet_player.cpp
     ./esp_tts_wav/wav_encoder.c
     ./esp_tts_wav/wav_decoder.c
     )

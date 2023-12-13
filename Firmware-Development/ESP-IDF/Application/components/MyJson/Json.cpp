@@ -1,7 +1,7 @@
-#include"Json.h"
+#include"Json.hpp"
 #include "cJSON.h"
 
-char* createJson(const char* key, const char* value, ...) 
+char* Json::createJson(const char* key, const char* value, ...) 
 {
     cJSON *root = cJSON_CreateObject();
     

@@ -26,7 +26,7 @@
 #include "board.h"
 #include "input_key_service.h"
 #include "WifiSoftApp.h"
-#include "TelemetrySend.h"
+#include "TelemetrySend.hpp"
 #include <cJSON.h>
 
 static esp_afe_sr_iface_t *afe_handle = NULL;
@@ -41,15 +41,16 @@ const char *TAG = "ESP-SKAINET";
 
 uint32_t record(int16_t *buff, uint16_t seconds);
 static esp_err_t input_key_service_cb(periph_service_handle_t handle, periph_service_event_t *evt, void *ctx);
+Json* json = new Json();
 
 void feed_Task(void *arg)
 {
-    esp_afe_sr_data_t *afe_data = arg;
+    esp_afe_sr_data_t *afe_data = static_cast<esp_afe_sr_data_t*>(arg);
     int audio_chunksize = afe_handle->get_feed_chunksize(afe_data);
     int nch = afe_handle->get_channel_num(afe_data);
     int feed_channel = esp_get_feed_channel();
     assert(nch < feed_channel);
-    int16_t *i2s_buff = malloc(audio_chunksize * sizeof(int16_t) * feed_channel);
+    int16_t *i2s_buff = static_cast<int16_t*>(malloc(audio_chunksize * sizeof(int16_t) * feed_channel));
     assert(i2s_buff);
     ESP_LOGE("", "chunk size : %d", audio_chunksize);
 
@@ -74,9 +75,9 @@ void feed_Task(void *arg)
 
 void detect_Task(void *arg)
 {
-    esp_afe_sr_data_t *afe_data = arg;
+    esp_afe_sr_data_t *afe_data = static_cast<esp_afe_sr_data_t*>(arg);
     int afe_chunksize = afe_handle->get_fetch_chunksize(afe_data);
-    int16_t *buff = malloc(afe_chunksize * sizeof(int16_t));
+    int16_t *buff = static_cast<int16_t*>(malloc(afe_chunksize * sizeof(int16_t)));
     assert(buff);
     printf("------------detect start------------\n");
     // int volume = 0;
@@ -85,9 +86,9 @@ void detect_Task(void *arg)
     // ESP_LOGE(TAG, "Volume : %d", volume);
 
     int dataSize = (afe_chunksize * ONE_SECOND_FRAMES * RECORD_TIME_SECONDS);
-    int16_t *audioBuffer = malloc(dataSize * sizeof(int16_t));
-    char *transcribeResponseBuf = malloc(MAX_RESPONSE_BUFFER);
-    char *completionResponseBuf = malloc(MAX_RESPONSE_BUFFER);
+    int16_t *audioBuffer = static_cast<int16_t*>(malloc(dataSize * sizeof(int16_t)));
+    char *transcribeResponseBuf = static_cast<char*>(malloc(MAX_RESPONSE_BUFFER));
+    char *completionResponseBuf = static_cast<char*>(malloc(MAX_RESPONSE_BUFFER));
     if (!audioBuffer || !transcribeResponseBuf || !completionResponseBuf)
     {
         ESP_LOGE(TAG, "memory not allocated");
@@ -134,13 +135,13 @@ void detect_Task(void *arg)
             char *completionText = process_response(completionResponseBuf); // deallocation needed
             if (completionText)
             {
-                char *speechRequestJson = createJson("model", "tts-1",
+                char *speechRequestJson = json->createJson("model", "tts-1",
                                                      "input", completionText,
                                                      "voice", "alloy",
                                                      "response_data", "mp3",
                                                      NULL); // deallocation needed
 
-                char *promptAndResponse = createJson("prompt", transcribedText, "response", completionText, NULL);
+                char *promptAndResponse = json->createJson("prompt", transcribedText, "response", completionText, NULL);
 
                 send_telemetry_data(promptAndResponse); // Post prompt and respone telemetry to the server
 
@@ -186,7 +187,7 @@ void app_main()
 
     printf("Wifi Connected Successfully\n");
     // Create JSON data
-    char *jsonData = createJson("Wifi Status", "Connected", "Ready to connect with the OpenAI", "Yes",
+    char *jsonData = json->createJson("Wifi Status", "Connected", "Ready to connect with the OpenAI", "Yes",
                                 NULL);
 
     send_telemetry_data(jsonData); // Post Health telemetry to the server
@@ -196,7 +197,7 @@ void app_main()
     // free((void *)jsonData);
     ESP_LOGE(TAG, "esp_get_free_heap_size - %d", esp_get_free_heap_size());
     ESP_LOGE(TAG, "esp_get_minimum_free_heap_size: %u", esp_get_minimum_free_heap_size());
-    speechBuffer = malloc(300 * 1024);
+    speechBuffer = static_cast<char*>(malloc(300 * 1024));
     ESP_LOGE(TAG, "esp_get_free_heap_size - %d", esp_get_free_heap_size());
     ESP_LOGE(TAG, "esp_get_minimum_free_heap_size: %u", esp_get_minimum_free_heap_size());
 

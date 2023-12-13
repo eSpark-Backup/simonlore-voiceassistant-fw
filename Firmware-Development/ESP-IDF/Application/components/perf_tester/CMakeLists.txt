@@ -1,7 +1,7 @@
 set(srcs
-    wn_perf_tester.c
-    mn_perf_tester.c
-    perf_tester_cmd.c
+    wn_perf_tester.cpp
+    mn_perf_tester.cpp
+    perf_tester_cmd.cpp
     )
 
 set(requires
