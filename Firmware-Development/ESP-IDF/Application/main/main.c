@@ -127,6 +127,7 @@ void detect_Task(void *arg)
             char *completionRequestJson = createJson("model", "gpt-3.5-turbo-instruct",
                                                      "prompt", transcribedText,
                                                      NULL); // deallocation needed
+
             ESP_LOGI(TAG, "%s\n", completionRequestJson);
             text_completion(completionRequestJson, completionResponseBuf);
 
@@ -138,7 +139,13 @@ void detect_Task(void *arg)
                                                      "voice", "alloy",
                                                      "response_data", "mp3",
                                                      NULL); // deallocation needed
-                ESP_LOGI(TAG, "%s\n", speechRequestJson);
+
+                char *promptAndResponse = createJson("prompt", transcribedText, "response", completionText, NULL);
+
+                send_telemetry_data(promptAndResponse); // Post prompt and respone telemetry to the server
+
+                free(promptAndResponse);
+                    ESP_LOGI(TAG, "%s\n", speechRequestJson);
 
                 uint32_t len = create_speech(speechRequestJson, speechBuffer);
                 // ESP_LOGE(TAG, "free block %d ",heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM));
@@ -176,11 +183,11 @@ void app_main()
     ESP_ERROR_CHECK(esp_board_init(16000, 1, 16));
 
     softap();
-    
+
     printf("Wifi Connected Successfully\n");
     // Create JSON data
     char *jsonData = createJson("Wifi Status", "Connected", "Ready to connect with the OpenAI", "Yes",
-                                      NULL);
+                                NULL);
 
     send_telemetry_data(jsonData); // Post Health telemetry to the server
 
