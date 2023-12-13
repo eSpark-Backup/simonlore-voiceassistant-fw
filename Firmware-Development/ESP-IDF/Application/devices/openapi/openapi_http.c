@@ -321,7 +321,8 @@ void transcribe_wav_file(int16_t* stream, uint32_t size, char* received_buf)
     free(head_final);
 }
 
-char* createJson(const char* key, const char* value, ...) {
+char* createJson(const char* key, const char* value, ...) 
+{
     cJSON *root = cJSON_CreateObject();
     
     cJSON_AddStringToObject(root, key, value);

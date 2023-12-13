@@ -1,4 +1,5 @@
 #include "WifiSoftApp.h"
+
 const int WIFI_CONNECTED_EVENT = BIT0;
 static const char *TAG = "app";
 static EventGroupHandle_t wifi_event_group;
@@ -42,6 +43,7 @@ static void event_handler(void *arg, esp_event_base_t event_base,
 #endif
             break;
         }
+
         case WIFI_PROV_CRED_SUCCESS:
             ESP_LOGI(TAG, "Provisioning successful");
 #ifdef CONFIG_EXAMPLE_RESET_PROV_MGR_ON_FAILURE
@@ -56,10 +58,12 @@ static void event_handler(void *arg, esp_event_base_t event_base,
             break;
         }
     }
+    
     else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START)
     {
         esp_wifi_connect();
     }
+
     else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP)
     {
         ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;

@@ -29,18 +29,17 @@
 #include "TelemetrySend.h"
 #include <cJSON.h>
 
-
 static esp_afe_sr_iface_t *afe_handle = NULL;
 static esp_afe_sr_data_t *afe_data = NULL;
 static volatile int task_flag = 0;
 bool recordStatus = false;
-char* speechBuffer = NULL;
-const char* TAG = "ESP-SKAINET";
+char *speechBuffer = NULL;
+const char *TAG = "ESP-SKAINET";
 
 #define RECORD_TIME_SECONDS 4
 #define ONE_SECOND_FRAMES 31.25f
 
-uint32_t record(int16_t* buff, uint16_t seconds);
+uint32_t record(int16_t *buff, uint16_t seconds);
 static esp_err_t input_key_service_cb(periph_service_handle_t handle, periph_service_event_t *evt, void *ctx);
 
 void feed_Task(void *arg)
@@ -49,23 +48,24 @@ void feed_Task(void *arg)
     int audio_chunksize = afe_handle->get_feed_chunksize(afe_data);
     int nch = afe_handle->get_channel_num(afe_data);
     int feed_channel = esp_get_feed_channel();
-    assert(nch<feed_channel);
+    assert(nch < feed_channel);
     int16_t *i2s_buff = malloc(audio_chunksize * sizeof(int16_t) * feed_channel);
     assert(i2s_buff);
     ESP_LOGE("", "chunk size : %d", audio_chunksize);
 
     while (1)
     {
-        while (task_flag) {
+        while (task_flag)
+        {
             esp_get_feed_data(false, i2s_buff, audio_chunksize * sizeof(int16_t) * feed_channel);
 
             afe_handle->feed(afe_data, i2s_buff);
         }
-        vTaskDelay(10/ portTICK_RATE_MS);
+        vTaskDelay(10 / portTICK_RATE_MS);
     }
-    
-    
-    if (i2s_buff) {
+
+    if (i2s_buff)
+    {
         free(i2s_buff);
         i2s_buff = NULL;
     }
@@ -85,18 +85,18 @@ void detect_Task(void *arg)
     // ESP_LOGE(TAG, "Volume : %d", volume);
 
     int dataSize = (afe_chunksize * ONE_SECOND_FRAMES * RECORD_TIME_SECONDS);
-    int16_t* audioBuffer = malloc(dataSize * sizeof(int16_t));
-    char* transcribeResponseBuf = malloc(MAX_RESPONSE_BUFFER);
-    char* completionResponseBuf = malloc(MAX_RESPONSE_BUFFER);
+    int16_t *audioBuffer = malloc(dataSize * sizeof(int16_t));
+    char *transcribeResponseBuf = malloc(MAX_RESPONSE_BUFFER);
+    char *completionResponseBuf = malloc(MAX_RESPONSE_BUFFER);
     if (!audioBuffer || !transcribeResponseBuf || !completionResponseBuf)
     {
         ESP_LOGE(TAG, "memory not allocated");
-        task_flag =0;
+        task_flag = 0;
     }
 
-    while (1) 
+    while (1)
     {
-        // afe_fetch_result_t* res = afe_handle->fetch(afe_data); 
+        // afe_fetch_result_t* res = afe_handle->fetch(afe_data);
         // if (!res || res->ret_value == ESP_FAIL) {
         //     printf("fetch error!\n");
         //     break;
@@ -104,54 +104,57 @@ void detect_Task(void *arg)
 
         // if (res->wakeup_state == WAKENET_DETECTED) {
         //     printf("wakeword detected\n");
-	    //     printf("model index:%d, word index:%d\n", res->wakenet_model_index, res->wake_word_index);
+        //     printf("model index:%d, word index:%d\n", res->wakenet_model_index, res->wake_word_index);
         //     printf("-----------LISTENING-----------\n");
         // }
         // esp_audio_play(res->data, res->data_size, 1000/ portTICK_RATE_MS);
         task_flag = 0;
-        while (!recordStatus) { vTaskDelay(1000/ portTICK_RATE_MS); }
+        while (!recordStatus)
+        {
+            vTaskDelay(1000 / portTICK_RATE_MS);
+        }
         task_flag = 1;
         uint32_t audioSize = record(audioBuffer, RECORD_TIME_SECONDS);
 
         task_flag = 0;
-        
+
         transcribe_wav_file(audioBuffer, audioSize, transcribeResponseBuf);
         ESP_LOGI(TAG, "%s", transcribeResponseBuf);
-        char* transcribedText = processTranscribeResponse(transcribeResponseBuf); // deallocation needed
-        
+        char *transcribedText = processTranscribeResponse(transcribeResponseBuf); // deallocation needed
+
         if (transcribedText)
-        {    
-            char* completionRequestJson = createJson(  "model", "gpt-3.5-turbo-instruct",
-                                            "prompt", transcribedText,
-                                            NULL); // deallocation needed
-            ESP_LOGI(TAG, "%s\n", completionRequestJson);                             
+        {
+            char *completionRequestJson = createJson("model", "gpt-3.5-turbo-instruct",
+                                                     "prompt", transcribedText,
+                                                     NULL); // deallocation needed
+            ESP_LOGI(TAG, "%s\n", completionRequestJson);
             text_completion(completionRequestJson, completionResponseBuf);
 
-            char* completionText = process_response(completionResponseBuf); // deallocation needed
+            char *completionText = process_response(completionResponseBuf); // deallocation needed
             if (completionText)
             {
-                char* speechRequestJson = createJson(  "model", "tts-1",
-                                                "input", completionText,
-                                                "voice", "alloy",
-                                                "response_data", "mp3",
-                                                NULL); // deallocation needed
-                ESP_LOGI(TAG, "%s\n", speechRequestJson); 
-                
+                char *speechRequestJson = createJson("model", "tts-1",
+                                                     "input", completionText,
+                                                     "voice", "alloy",
+                                                     "response_data", "mp3",
+                                                     NULL); // deallocation needed
+                ESP_LOGI(TAG, "%s\n", speechRequestJson);
+
                 uint32_t len = create_speech(speechRequestJson, speechBuffer);
                 // ESP_LOGE(TAG, "free block %d ",heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM));
                 AudioFrame audio = {.data = speechBuffer, .len = len};
                 play(audio);
 
-                free(speechRequestJson);           
-            }    
+                free(speechRequestJson);
+            }
             free(completionRequestJson);
             free(completionText);
         }
         free(transcribedText);
-        task_flag = 1;   
+        task_flag = 1;
     }
 
-    if (buff) 
+    if (buff)
     {
         free(buff);
         buff = NULL;
@@ -161,21 +164,29 @@ void detect_Task(void *arg)
 
 void app_main()
 {
-    //Initialize NVS
+    // Initialize NVS
     esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-      ESP_ERROR_CHECK(nvs_flash_erase());
-      ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
+    {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
-    
+
     ESP_ERROR_CHECK(esp_board_init(16000, 1, 16));
-    printf("Before softApp\n");
+
     softap();
+    
+    printf("Wifi Connected Successfully\n");
+    // Create JSON data
+    char *jsonData = createJson("Wifi Status", "Connected", "Ready to connect with the OpenAI", "Yes",
+                                      NULL);
 
-    // TelemetryData telemetryData = {5,10};
-    send_telemetry_data();
+    send_telemetry_data(jsonData); // Post Health telemetry to the server
 
+    free(jsonData);
+    // Free the allocated memory for jsonData
+    // free((void *)jsonData);
     ESP_LOGE(TAG, "esp_get_free_heap_size - %d", esp_get_free_heap_size());
     ESP_LOGE(TAG, "esp_get_minimum_free_heap_size: %u", esp_get_minimum_free_heap_size());
     speechBuffer = malloc(300 * 1024);
@@ -188,21 +199,29 @@ void app_main()
     char *wn_name = NULL;
     char *wn_name_2 = NULL;
 
-    if (models!=NULL) {
-        for (int i=0; i<models->num; i++) {
-            if (strstr(models->model_name[i], ESP_WN_PREFIX) != NULL) {
-                if (wn_name == NULL) {
+    if (models != NULL)
+    {
+        for (int i = 0; i < models->num; i++)
+        {
+            if (strstr(models->model_name[i], ESP_WN_PREFIX) != NULL)
+            {
+                if (wn_name == NULL)
+                {
                     wn_name = models->model_name[i];
                     printf("The first wakenet model: %s\n", wn_name);
-                } else if (wn_name_2 == NULL) {
+                }
+                else if (wn_name_2 == NULL)
+                {
                     wn_name_2 = models->model_name[i];
                     printf("The second wakenet model: %s\n", wn_name_2);
                 }
             }
         }
-    } else {
+    }
+    else
+    {
         printf("Please enable wakenet model and select wake word by menuconfig!\n");
-        return ;
+        return;
     }
 
     afe_handle = (esp_afe_sr_iface_t *)&ESP_AFE_SR_HANDLE;
@@ -215,14 +234,14 @@ void app_main()
 
 #if defined CONFIG_ESP32_S3_BOX_BOARD || defined CONFIG_ESP32_S3_EYE_BOARD
     afe_config.aec_init = false;
-    #if defined CONFIG_ESP32_S3_EYE_BOARD
-        afe_config.pcm_config.total_ch_num = 2;
-        afe_config.pcm_config.mic_num = 1;
-        afe_config.pcm_config.ref_num = 1;
-    #endif
+#if defined CONFIG_ESP32_S3_EYE_BOARD
+    afe_config.pcm_config.total_ch_num = 2;
+    afe_config.pcm_config.mic_num = 1;
+    afe_config.pcm_config.ref_num = 1;
+#endif
 #endif
     afe_data = afe_handle->create_from_config(&afe_config);
-    
+
     task_flag = 1;
     // esp_log_level_set("*", ESP_LOG_WARN);
     ESP_LOGI(TAG, "[ 2 ] Start codec chip");
@@ -241,12 +260,12 @@ void app_main()
     periph_service_handle_t input_ser = input_key_service_create(&input_cfg);
     input_key_service_add_key(input_ser, input_key_info, INPUT_KEY_NUM);
     periph_service_set_callback(input_ser, input_key_service_cb, NULL);
-    
+
     AudioFrame audio = {.data = audio_data, .len = sizeof(audio_data)};
     play(audio);
 
-    xTaskCreatePinnedToCore(&feed_Task, "feed", 8 * 1024, (void*)afe_data, 5, NULL, 0);
-    xTaskCreatePinnedToCore(&detect_Task, "detect", 4 * 1024, (void*)afe_data, 5, NULL, 1);
+    xTaskCreatePinnedToCore(&feed_Task, "feed", 8 * 1024, (void *)afe_data, 5, NULL, 0);
+    xTaskCreatePinnedToCore(&detect_Task, "detect", 4 * 1024, (void *)afe_data, 5, NULL, 1);
 
     // // You can call afe_handle->destroy to destroy AFE.
     // task_flag = 0;
@@ -257,14 +276,15 @@ void app_main()
     // printf("successful\n");
 }
 
-uint32_t record(int16_t* buff, uint16_t seconds)
+uint32_t record(int16_t *buff, uint16_t seconds)
 {
     printf("\nRecording.......!\n");
     size_t totalDataSize = 0;
     for (size_t i = 0; i < ((ONE_SECOND_FRAMES * seconds) - 1); i++)
     {
-        afe_fetch_result_t* res = afe_handle->fetch(afe_data); 
-        if (!res || res->ret_value == ESP_FAIL) {
+        afe_fetch_result_t *res = afe_handle->fetch(afe_data);
+        if (!res || res->ret_value == ESP_FAIL)
+        {
             printf("fetch error!\n");
             break;
         }
@@ -273,32 +293,37 @@ uint32_t record(int16_t* buff, uint16_t seconds)
             break;
         }
         memcpy(buff + totalDataSize, res->data, res->data_size * sizeof(int16_t));
-        totalDataSize += res->data_size/2;
+        totalDataSize += res->data_size / 2;
         // esp_audio_play(res->data, res->data_size,  1000 / portTICK_RATE_MS);
     }
     totalDataSize *= 2;
     printf("\nStopped!\n");
-    recordStatus =0;
+    recordStatus = 0;
     return totalDataSize;
 }
 
 static esp_err_t input_key_service_cb(periph_service_handle_t handle, periph_service_event_t *evt, void *ctx)
 {
-    if (evt->type == INPUT_KEY_SERVICE_ACTION_CLICK) {
-        switch ((int)evt->data) {
-            case INPUT_KEY_USER_ID_MODE:
-                ESP_LOGI(TAG, "[ * ] [Set] input key event, change mode ...");
-                break;
-            case INPUT_KEY_USER_ID_REC:
-                ESP_LOGI(TAG, "[ * ] [Rec] input key event, start/stop recording ...");
-                recordStatus = !recordStatus;
-                break;
+    if (evt->type == INPUT_KEY_SERVICE_ACTION_CLICK)
+    {
+        switch ((int)evt->data)
+        {
+        case INPUT_KEY_USER_ID_MODE:
+            ESP_LOGI(TAG, "[ * ] [Set] input key event, change mode ...");
+            break;
+        case INPUT_KEY_USER_ID_REC:
+            ESP_LOGI(TAG, "[ * ] [Rec] input key event, start/stop recording ...");
+            recordStatus = !recordStatus;
+            break;
         }
-    } else if (evt->type == INPUT_KEY_SERVICE_ACTION_CLICK_RELEASE || evt->type == INPUT_KEY_SERVICE_ACTION_PRESS_RELEASE) {
-        switch ((int)evt->data) {
-            case INPUT_KEY_USER_ID_REC:
-                ESP_LOGI(TAG, "[ * ] [Rec] key released, start/stop key released ...");
-                break;
+    }
+    else if (evt->type == INPUT_KEY_SERVICE_ACTION_CLICK_RELEASE || evt->type == INPUT_KEY_SERVICE_ACTION_PRESS_RELEASE)
+    {
+        switch ((int)evt->data)
+        {
+        case INPUT_KEY_USER_ID_REC:
+            ESP_LOGI(TAG, "[ * ] [Rec] key released, start/stop key released ...");
+            break;
         }
     }
 
