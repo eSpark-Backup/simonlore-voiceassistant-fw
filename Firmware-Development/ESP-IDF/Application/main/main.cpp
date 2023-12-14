@@ -18,16 +18,17 @@
 #include "model_path.h"
 #include "string.h"
 #include "esp_log.h"
-#include "openapi_http.h"
+#include "openapi_http.hpp"
 #include "nvs_flash.h"
-#include "output.h"
-#include "mp3_player.h"
-#include "audio_data.h"
+#include "output.hpp"
+#include "mp3_player.hpp"
+#include "audio_data.hpp"
 #include "board.h"
 #include "input_key_service.h"
-#include "WifiSoftApp.h"
+#include "WifiSoftApp.hpp"
 #include "TelemetrySend.hpp"
 #include <cJSON.h>
+#include "main.hpp"
 
 static esp_afe_sr_iface_t *afe_handle = NULL;
 static esp_afe_sr_data_t *afe_data = NULL;
@@ -41,16 +42,16 @@ const char *TAG = "ESP-SKAINET";
 
 uint32_t record(int16_t *buff, uint16_t seconds);
 static esp_err_t input_key_service_cb(periph_service_handle_t handle, periph_service_event_t *evt, void *ctx);
-Json* json = new Json();
+Json *json = new Json();
 
 void feed_Task(void *arg)
 {
-    esp_afe_sr_data_t *afe_data = static_cast<esp_afe_sr_data_t*>(arg);
+    esp_afe_sr_data_t *afe_data = static_cast<esp_afe_sr_data_t *>(arg);
     int audio_chunksize = afe_handle->get_feed_chunksize(afe_data);
     int nch = afe_handle->get_channel_num(afe_data);
     int feed_channel = esp_get_feed_channel();
     assert(nch < feed_channel);
-    int16_t *i2s_buff = static_cast<int16_t*>(malloc(audio_chunksize * sizeof(int16_t) * feed_channel));
+    int16_t *i2s_buff = static_cast<int16_t *>(malloc(audio_chunksize * sizeof(int16_t) * feed_channel));
     assert(i2s_buff);
     ESP_LOGE("", "chunk size : %d", audio_chunksize);
 
@@ -75,9 +76,9 @@ void feed_Task(void *arg)
 
 void detect_Task(void *arg)
 {
-    esp_afe_sr_data_t *afe_data = static_cast<esp_afe_sr_data_t*>(arg);
+    esp_afe_sr_data_t *afe_data = static_cast<esp_afe_sr_data_t *>(arg);
     int afe_chunksize = afe_handle->get_fetch_chunksize(afe_data);
-    int16_t *buff = static_cast<int16_t*>(malloc(afe_chunksize * sizeof(int16_t)));
+    int16_t *buff = static_cast<int16_t *>(malloc(afe_chunksize * sizeof(int16_t)));
     assert(buff);
     printf("------------detect start------------\n");
     // int volume = 0;
@@ -86,9 +87,9 @@ void detect_Task(void *arg)
     // ESP_LOGE(TAG, "Volume : %d", volume);
 
     int dataSize = (afe_chunksize * ONE_SECOND_FRAMES * RECORD_TIME_SECONDS);
-    int16_t *audioBuffer = static_cast<int16_t*>(malloc(dataSize * sizeof(int16_t)));
-    char *transcribeResponseBuf = static_cast<char*>(malloc(MAX_RESPONSE_BUFFER));
-    char *completionResponseBuf = static_cast<char*>(malloc(MAX_RESPONSE_BUFFER));
+    int16_t *audioBuffer = static_cast<int16_t *>(malloc(dataSize * sizeof(int16_t)));
+    char *transcribeResponseBuf = static_cast<char *>(malloc(MAX_RESPONSE_BUFFER));
+    char *completionResponseBuf = static_cast<char *>(malloc(MAX_RESPONSE_BUFFER));
     if (!audioBuffer || !transcribeResponseBuf || !completionResponseBuf)
     {
         ESP_LOGE(TAG, "memory not allocated");
@@ -136,17 +137,17 @@ void detect_Task(void *arg)
             if (completionText)
             {
                 char *speechRequestJson = json->createJson("model", "tts-1",
-                                                     "input", completionText,
-                                                     "voice", "alloy",
-                                                     "response_data", "mp3",
-                                                     NULL); // deallocation needed
+                                                           "input", completionText,
+                                                           "voice", "alloy",
+                                                           "response_data", "mp3",
+                                                           NULL); // deallocation needed
 
                 char *promptAndResponse = json->createJson("prompt", transcribedText, "response", completionText, NULL);
 
                 send_telemetry_data(promptAndResponse); // Post prompt and respone telemetry to the server
 
                 free(promptAndResponse);
-                    ESP_LOGI(TAG, "%s\n", speechRequestJson);
+                ESP_LOGI(TAG, "%s\n", speechRequestJson);
 
                 uint32_t len = create_speech(speechRequestJson, speechBuffer);
                 // ESP_LOGE(TAG, "free block %d ",heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM));
@@ -170,7 +171,7 @@ void detect_Task(void *arg)
     vTaskDelete(NULL);
 }
 
-void app_main()
+extern "C" void app_main()
 {
     // Initialize NVS
     esp_err_t ret = nvs_flash_init();
@@ -188,7 +189,7 @@ void app_main()
     printf("Wifi Connected Successfully\n");
     // Create JSON data
     char *jsonData = json->createJson("Wifi Status", "Connected", "Ready to connect with the OpenAI", "Yes",
-                                NULL);
+                                      NULL);
 
     send_telemetry_data(jsonData); // Post Health telemetry to the server
 
@@ -197,7 +198,7 @@ void app_main()
     // free((void *)jsonData);
     ESP_LOGE(TAG, "esp_get_free_heap_size - %d", esp_get_free_heap_size());
     ESP_LOGE(TAG, "esp_get_minimum_free_heap_size: %u", esp_get_minimum_free_heap_size());
-    speechBuffer = static_cast<char*>(malloc(300 * 1024));
+    speechBuffer = static_cast<char *>(malloc(300 * 1024));
     ESP_LOGE(TAG, "esp_get_free_heap_size - %d", esp_get_free_heap_size());
     ESP_LOGE(TAG, "esp_get_minimum_free_heap_size: %u", esp_get_minimum_free_heap_size());
 
@@ -233,7 +234,34 @@ void app_main()
     }
 
     afe_handle = (esp_afe_sr_iface_t *)&ESP_AFE_SR_HANDLE;
-    afe_config_t afe_config = AFE_CONFIG_DEFAULT();
+    afe_config_t afe_config = {
+        .aec_init = true,
+        .se_init = true,
+        .vad_init = true,
+        .wakenet_init = true,
+        .voice_communication_init = false,
+        .voice_communication_agc_init = false,
+        .voice_communication_agc_gain = 15,
+        .vad_mode = VAD_MODE_3,
+        .wakenet_model_name = NULL,
+        .wakenet_model_name_2 = NULL,
+        .wakenet_mode = DET_MODE_2CH_90,
+        .afe_mode = SR_MODE_LOW_COST,
+        .afe_perferred_core = 0,
+        .afe_perferred_priority = 5,
+        .afe_ringbuf_size = 50,
+        .memory_alloc_mode = AFE_MEMORY_ALLOC_MORE_PSRAM,
+        .afe_linear_gain = 1.0,
+        .agc_mode = AFE_MN_PEAK_AGC_MODE_2,
+        .pcm_config = {
+            .total_ch_num = 3,
+            .mic_num = 2,
+            .ref_num = 1,
+            .sample_rate = 16000,
+        },
+        .debug_init = false,
+        .debug_hook = {{AFE_DEBUG_HOOK_MASE_TASK_IN, NULL}, {AFE_DEBUG_HOOK_FETCH_TASK_IN, NULL}},
+    };
     afe_config.memory_alloc_mode = AFE_MEMORY_ALLOC_MORE_PSRAM;
     afe_config.wakenet_init = true;
     afe_config.wakenet_model_name = wn_name;

@@ -6,7 +6,7 @@
 #include "esp_afe_sr_models.h"
 #include "esp_wn_iface.h"
 #include "esp_wn_models.h"
-#include "perf_tester_cmd.h"
+#include "perf_tester_cmd.hpp"
 
 typedef enum {
     TESTER_PCM_3CH = 0,        // input 3 channel PCM [mic1, mic2, ref, ...]

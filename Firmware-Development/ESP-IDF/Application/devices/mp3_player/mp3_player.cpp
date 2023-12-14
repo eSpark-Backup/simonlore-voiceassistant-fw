@@ -8,12 +8,12 @@
 #include "i2s_stream.h"
 #include "mp3_decoder.h"
 #include "esp_peripherals.h"
-#include "mp3_player.h"
+#include "mp3_player.hpp"
 #include "board.h"
 
 static const char *TAG = "mp3_player";
 
-static int mp3_music_read_cb(audio_element_handle_t el, char *buf, int len, TickType_t wait_time, void *ctx)
+static audio_element_err_t mp3_music_read_cb(audio_element_handle_t el, char *buf, int len, TickType_t wait_time, void *ctx)
 {
     AudioFrame* audio = (AudioFrame*)ctx;
 
@@ -31,7 +31,7 @@ static int mp3_music_read_cb(audio_element_handle_t el, char *buf, int len, Tick
     memcpy(buf, audio->data + mp3_pos, read_size);
     mp3_pos += read_size;
 
-    return read_size;
+    return AEL_IO_OK; // or AEL_IO_DONE if appropriate for your use case;
 }
 
 void play(AudioFrame audio)

@@ -2,7 +2,7 @@
 #include "esp_log.h"
 #include "assert.h"
 #include "string.h"
-#include "perf_tester_cmd.h"
+#include "perf_tester_cmd.hpp"
 
 // static const char *TAG = "perf_tester_cmd";
 static struct {

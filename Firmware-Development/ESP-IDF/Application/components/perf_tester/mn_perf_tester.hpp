@@ -8,7 +8,7 @@
 #include "esp_wn_models.h"
 #include "esp_mn_iface.h"
 #include "esp_mn_models.h"
-#include "perf_tester_cmd.h"
+#include "perf_tester_cmd.hpp"
 
 
 typedef enum {

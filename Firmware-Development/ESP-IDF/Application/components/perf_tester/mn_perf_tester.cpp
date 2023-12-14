@@ -6,18 +6,18 @@
 #include <sys/dirent.h>
 #include "assert.h"
 #include "wav_decoder.h"
-#include "esp_skainet_player.h"
-#include "mn_perf_tester.h"
+#include "esp_skainet_player.hpp"
+#include "mn_perf_tester.hpp"
 #include "esp_board_init.h"
 #include "esp_mn_speech_commands.h"
 #include "esp_process_sdkconfig.h"
 
-
-typedef struct {
+typedef struct
+{
     int rb_buffer_size;
     int frame_size;
-    char **file_list;           // list of wav files
-    char **gt_file_list;        // list of groundtruth csv files of each wav file
+    char **file_list;    // list of wav files
+    char **gt_file_list; // list of groundtruth csv files of each wav file
     char *log_file;
     char *csv_file;
     int file_num;
@@ -26,18 +26,18 @@ typedef struct {
     int nch;
     int sample_rate;
     int64_t wave_time;
-    int tester_mem_size;        // total memory for tester, include PSRAM and SRAM
-    int tester_sram_size;       // internal SRAM size for tester
+    int tester_mem_size;  // total memory for tester, include PSRAM and SRAM
+    int tester_sram_size; // internal SRAM size for tester
 
     // wakenet
     esp_afe_sr_iface_t *afe_handle;
     esp_afe_sr_data_t *afe_data;
     afe_config_t *afe_config;
 
-    int *file_wn_det_times;      // wake times for each file
-    int *file_wn_miss_times;     // missed wake word times for each file
-    float *file_wn_delay_seconds;  // trigger delay of detected wake words for each file
-    float *file_wn_max_delay_seconds;  // max trigger delay of detected wake words for each file
+    int *file_wn_det_times;           // wake times for each file
+    int *file_wn_miss_times;          // missed wake word times for each file
+    float *file_wn_delay_seconds;     // trigger delay of detected wake words for each file
+    float *file_wn_max_delay_seconds; // max trigger delay of detected wake words for each file
 
     // multinet
     esp_mn_iface_t *multinet;
@@ -48,76 +48,73 @@ typedef struct {
     int mn_active;
     int64_t mn_running_time;
 
-    int *file_mn_correct_times;    // correct detected cmd times for each file
-    int *file_mn_incorrect_times;  // incorrect detected cmd times for each file
-    int *file_mn_miss_times;       // missed cmd times for each file
-    int *file_mn_miss_by_wn_times; // missed cmd times caused by wake net not woken up
+    int *file_mn_correct_times;               // correct detected cmd times for each file
+    int *file_mn_incorrect_times;             // incorrect detected cmd times for each file
+    int *file_mn_miss_times;                  // missed cmd times for each file
+    int *file_mn_miss_by_wn_times;            // missed cmd times caused by wake net not woken up
     int *file_mn_miss_by_early_timeout_times; // missed cmd times caused by early timeout
-    int *file_mn_timeout_times;    // time out times for each file
-    int *file_mn_early_timeout_times;    // early time out times for each file
-    float *file_mn_delay_seconds;        // trigger delay of correctly detected cmd for each file
-    float *file_mn_max_delay_seconds;    // max trigger delay of correctly detected cmd for each file
+    int *file_mn_timeout_times;               // time out times for each file
+    int *file_mn_early_timeout_times;         // early time out times for each file
+    float *file_mn_delay_seconds;             // trigger delay of correctly detected cmd for each file
+    float *file_mn_max_delay_seconds;         // max trigger delay of correctly detected cmd for each file
 
     // ground truth labels
     int gt_num_regions;
-    int *gt_region_type;           // region type, -1: wake word, 0: null, > 0: command id
-    float *gt_region_end;          // active speech end timestamp (second) for each region
-    float *gt_region_boundary;     // region boundary (equals to the start time of next wake word / command)
-    int *file_gt_num_wake;         // number of wake words of each file
-    int *file_gt_num_cmd;          // number of commands of each file
+    int *gt_region_type;       // region type, -1: wake word, 0: null, > 0: command id
+    float *gt_region_end;      // active speech end timestamp (second) for each region
+    float *gt_region_boundary; // region boundary (equals to the start time of next wake word / command)
+    int *file_gt_num_wake;     // number of wake words of each file
+    int *file_gt_num_cmd;      // number of commands of each file
 
-    int64_t processed_sample_num;    // number of processed samples
+    int64_t processed_sample_num; // number of processed samples
     tester_audio_t audio_type;
 
-    int force_reset;     // manually reset multinet before each command starts
+    int force_reset; // manually reset multinet before each command starts
     int test_done;
 
     // inside section params
-    int woke_up;   // whether wakenet is activated
-    int current_region_wn_detected;  // whether a wn detection is made in this region
-    int current_region_mn_detected;  // whether a mn detection is made in this region
-    int early_timeout;  // whether there is a early timeout in current section
-    int mn_reseted;  // whether mn is reset in this region
+    int woke_up;                    // whether wakenet is activated
+    int current_region_wn_detected; // whether a wn detection is made in this region
+    int current_region_mn_detected; // whether a mn detection is made in this region
+    int early_timeout;              // whether there is a early timeout in current section
+    int mn_reseted;                 // whether mn is reset in this region
 
     perf_tester_config_t *config;
 
 } skainet_perf_tester;
 
-
 int sdcard_scan(void *handle, const char *path, int audio_type)
 {
-    skainet_perf_tester *tester = handle;
+    skainet_perf_tester *tester = static_cast<skainet_perf_tester*>(handle);
     struct dirent *ret;
     DIR *dir;
     dir = opendir(path);
     int path_len = strlen(path);
     printf("Search files in %s\n", path);
-    if (dir != NULL) {
+    if (dir != NULL)
+    {
 
-        while ((ret = readdir(dir)) != NULL && tester->file_num < tester->max_file_num) {
+        while ((ret = readdir(dir)) != NULL && tester->file_num < tester->max_file_num)
+        {
             // NULL if reach the end of directory
 
-            if (ret->d_type != 1) { // continue if d_type is not file
+            if (ret->d_type != 1)
+            { // continue if d_type is not file
                 continue;
             }
 
             int len = strlen(ret->d_name);
-            if (len > FATFS_PATH_LENGTH_MAX - path_len - 1) { // continue if name is too long
+            if (len > FATFS_PATH_LENGTH_MAX - path_len - 1)
+            { // continue if name is too long
                 continue;
             }
 
             char *suffix = ret->d_name + len - 4;
 
-            if (audio_type == TESTER_PCM_1CH || audio_type == TESTER_PCM_3CH) {
-                if (strcmp(suffix, ".pcm") == 0 || strcmp(suffix, ".PCM") == 0) {
-                    memset(tester->file_list[tester->file_num], 0, FATFS_PATH_LENGTH_MAX);
-                    memcpy(tester->file_list[tester->file_num], path, path_len);
-                    memcpy(tester->file_list[tester->file_num] + path_len, ret->d_name, len + 1);
-                    printf("%d -> %s\n", tester->file_num, tester->file_list[tester->file_num]);
-                    tester->file_num++;
-                }
-            } else if (audio_type == TESTER_WAV_1CH || audio_type == TESTER_WAV_3CH) {
-                if (strcmp(suffix, ".wav") == 0 || strcmp(suffix, ".WAV") == 0) {
+            if (audio_type == TESTER_PCM_1CH || audio_type == TESTER_PCM_3CH)
+            {
+                if (strcmp(suffix, ".pcm") == 0 || strcmp(suffix, ".PCM") == 0)
+                {
                     memset(tester->file_list[tester->file_num], 0, FATFS_PATH_LENGTH_MAX);
                     memcpy(tester->file_list[tester->file_num], path, path_len);
                     memcpy(tester->file_list[tester->file_num] + path_len, ret->d_name, len + 1);
@@ -125,16 +122,27 @@ int sdcard_scan(void *handle, const char *path, int audio_type)
                     tester->file_num++;
                 }
             }
-
+            else if (audio_type == TESTER_WAV_1CH || audio_type == TESTER_WAV_3CH)
+            {
+                if (strcmp(suffix, ".wav") == 0 || strcmp(suffix, ".WAV") == 0)
+                {
+                    memset(tester->file_list[tester->file_num], 0, FATFS_PATH_LENGTH_MAX);
+                    memcpy(tester->file_list[tester->file_num], path, path_len);
+                    memcpy(tester->file_list[tester->file_num] + path_len, ret->d_name, len + 1);
+                    printf("%d -> %s\n", tester->file_num, tester->file_list[tester->file_num]);
+                    tester->file_num++;
+                }
+            }
         }
         closedir(dir);
         printf("Number of files: %d\n", tester->file_num);
-    } else {
+    }
+    else
+    {
         printf("Fail to open %s\r\n", path);
     }
     return tester->file_num;
 }
-
 
 void print_mn_report(skainet_perf_tester *tester)
 {
@@ -146,16 +154,20 @@ void print_mn_report(skainet_perf_tester *tester)
     printf("Tester PSRAM: %d KB\n", (tester->tester_mem_size - tester->tester_sram_size) / 1024);
     printf("Tester SRAM: %d KB\n", tester->tester_sram_size / 1024);
 
-    if (tester->multinet != NULL) {
+    if (tester->multinet != NULL)
+    {
         float mn_running_time = tester->mn_running_time * 1.0 / 240 / 1000 / 1000;
         printf("MN CPU: %d%%\n", (int)(100 * mn_running_time / wave_time));
         printf("MN PSRAM: %d KB\n", (tester->mn_mem_size - tester->mn_sram_size) / 1024);
         printf("MN SRAM: %d KB\n", tester->mn_sram_size / 1024);
-    } else {
+    }
+    else
+    {
         printf("Disable MN Pipeline\n\n");
     }
 
-    if (tester->file_num > 0) {
+    if (tester->file_num > 0)
+    {
         int wn_det = 0;
         float wn_delay = 0.0;
         int wn_gt = 0;
@@ -170,7 +182,8 @@ void print_mn_report(skainet_perf_tester *tester)
         float mn_delay = 0.0;
         int mn_gt = 0;
 
-        for (int i = 0; i < tester->file_num; i++) {
+        for (int i = 0; i < tester->file_num; i++)
+        {
             printf("File%d: %s\n", i, tester->file_list[i]);
             printf("File%d, trigger times: %d\n", i, tester->file_wn_det_times[i]);
             printf("File%d, truth times: %d\n", i, tester->file_gt_num_wake[i]);
@@ -218,19 +231,20 @@ void print_mn_report(skainet_perf_tester *tester)
     printf("TEST DONE\n");
 }
 
-
 int read_csv_file(skainet_perf_tester *tester)
 {
     FILE *fp = fopen(tester->csv_file, "r");
     tester->file_num = 0;
-    if (fp == NULL) {
+    if (fp == NULL)
+    {
         return tester->file_num;
     }
     char csv_line[512];
     char *token = NULL;
     char *rest = NULL;
-    fgets(csv_line, 512, fp);  //skip csv header
-    while (fgets(csv_line, 512, fp) != NULL && tester->file_num < tester->max_file_num) {
+    fgets(csv_line, 512, fp); // skip csv header
+    while (fgets(csv_line, 512, fp) != NULL && tester->file_num < tester->max_file_num)
+    {
         token = strtok_r(csv_line, ",", &rest);
         memset(tester->file_list[tester->file_num], 0, FATFS_PATH_LENGTH_MAX);
         memcpy(tester->file_list[tester->file_num], token, strlen(token));
@@ -238,7 +252,8 @@ int read_csv_file(skainet_perf_tester *tester)
         printf("%s\n", token);
 
         if (!check_noise(tester->file_list[tester->file_num], tester->config->noise) ||
-            !check_snr(tester->file_list[tester->file_num], tester->config->snr)) {
+            !check_snr(tester->file_list[tester->file_num], tester->config->snr))
+        {
             continue;
         }
         printf("input:%s\n", tester->file_list[tester->file_num]);
@@ -260,49 +275,53 @@ int read_csv_file(skainet_perf_tester *tester)
         // tester->file_required_num_cmd[tester->file_num] = atoi(token);
 
         printf("file %d, gt file %s, number of wake words %d, number of commands %d\n",
-                tester->file_num,
-                tester->gt_file_list[tester->file_num],
-                tester->file_gt_num_wake[tester->file_num],
-                tester->file_gt_num_cmd[tester->file_num]);
+               tester->file_num,
+               tester->gt_file_list[tester->file_num],
+               tester->file_gt_num_wake[tester->file_num],
+               tester->file_gt_num_cmd[tester->file_num]);
 
-        tester->file_num ++;
+        tester->file_num++;
     }
     printf("Number of files: %d\n", tester->file_num);
     return tester->file_num;
 }
 
-
 int read_gt_csv_file(skainet_perf_tester *tester, int gt_idx)
 {
     FILE *fp = fopen(tester->gt_file_list[gt_idx], "r");
-    if (fp == NULL) {
+    if (fp == NULL)
+    {
         printf("Failed to open gt file %s\n", tester->gt_file_list[gt_idx]);
         return 0;
     }
     char csv_line[512];
     char *token = NULL;
-    fgets(csv_line, 512, fp);  //skip csv header
+    fgets(csv_line, 512, fp); // skip csv header
 
     int num_regions = tester->file_gt_num_cmd[gt_idx] + tester->file_gt_num_wake[gt_idx];
     tester->gt_num_regions = num_regions;
 
-    if (tester->gt_region_type != NULL) {
+    if (tester->gt_region_type != NULL)
+    {
         free(tester->gt_region_type);
     }
-    tester->gt_region_type = calloc(num_regions, sizeof(int));
+    tester->gt_region_type = (int *)calloc(num_regions, sizeof(int));
 
-    if (tester->gt_region_end != NULL) {
+    if (tester->gt_region_end != NULL)
+    {
         free(tester->gt_region_end);
     }
-    tester->gt_region_end = calloc(num_regions, sizeof(float));
+    tester->gt_region_end = (float *)calloc(num_regions, sizeof(float));
 
-    if (tester->gt_region_boundary != NULL) {
+    if (tester->gt_region_boundary != NULL)
+    {
         free(tester->gt_region_boundary);
     }
-    tester->gt_region_boundary = calloc(num_regions, sizeof(float));
+    tester->gt_region_boundary = (float *)calloc(num_regions, sizeof(float));
 
     int idx = 0;
-    while (fgets(csv_line, 512, fp) != NULL) {
+    while (fgets(csv_line, 512, fp) != NULL)
+    {
         token = strtok(csv_line, ",");
         tester->gt_region_type[idx] = atoi(token);
         token = strtok(NULL, ",");
@@ -314,11 +333,10 @@ int read_gt_csv_file(skainet_perf_tester *tester, int gt_idx)
     return 1;
 }
 
-
 void wav_feed_task(void *arg)
 {
     printf("Create wav feed task ...\n");
-    skainet_perf_tester *tester = arg;
+    skainet_perf_tester *tester = static_cast<skainet_perf_tester*>(arg);
     esp_afe_sr_iface_t *afe_handle = tester->afe_handle;
     esp_afe_sr_data_t *afe_data = tester->afe_data;
     void *wav_decoder = NULL;
@@ -329,28 +347,36 @@ void wav_feed_task(void *arg)
 
     int i2s_buffer_size = frame_size * (nch + 1) * sizeof(int16_t);
 
-    int16_t *i2s_buffer = calloc(frame_size * (nch + 1), sizeof(int16_t)); // nch channel MIC data and one channel reference data
+    int16_t *i2s_buffer = (int16_t*)calloc(frame_size * (nch + 1), sizeof(int16_t)); // nch channel MIC data and one channel reference data
     tester->wave_time = 0;
 
-    for (int i = 0; i < tester->file_num; i++) {
+    for (int i = 0; i < tester->file_num; i++)
+    {
         wav_decoder = wav_decoder_open(tester->file_list[i]);
         file_nch = wav_decoder_get_channel(wav_decoder);
 
-        if (wav_decoder == NULL) {
+        if (wav_decoder == NULL)
+        {
             printf("can not find %s, play next song\n", tester->file_list[i]);
             continue;
-        } else if (wav_decoder_get_sample_rate(wav_decoder) != sample_rate) {
+        }
+        else if (wav_decoder_get_sample_rate(wav_decoder) != sample_rate)
+        {
             printf("The sample rate of %s does not meet the requirements, please resample to %d\n",
                    tester->file_list[i], sample_rate);
             wav_decoder_close(wav_decoder);
             continue;
-        } else if (file_nch != nch + 1) {
+        }
+        else if (file_nch != nch + 1)
+        {
 
             printf("The channel of %s does not meet the requirements(n=%d), please input %d channel MIC data and one channel reference data\n",
                    tester->file_list[i], file_nch, nch);
             wav_decoder_close(wav_decoder);
             continue;
-        } else {
+        }
+        else
+        {
             printf("start to process %s\n", tester->file_list[i]);
         }
 
@@ -372,14 +398,18 @@ void wav_feed_task(void *arg)
         int out_samples = 0;
         int size = i2s_buffer_size;
 
-        while (1) {
+        while (1)
+        {
             size = wav_decoder_run(wav_decoder, (unsigned char *)i2s_buffer, i2s_buffer_size);
             out_samples += frame_size;
 
-            if (size == i2s_buffer_size) {
+            if (size == i2s_buffer_size)
+            {
                 afe_handle->feed(afe_data, i2s_buffer);
                 vTaskDelay(32 / portTICK_PERIOD_MS);
-            } else {
+            }
+            else
+            {
                 // wav decoder free
                 vTaskDelay(1000 / portTICK_PERIOD_MS);
                 wav_decoder_close(wav_decoder);
@@ -397,11 +427,10 @@ void wav_feed_task(void *arg)
     vTaskDelete(NULL);
 }
 
-
 void detect_task(void *arg)
 {
     printf("Create detect task ...\n");
-    skainet_perf_tester *tester = arg;
+    skainet_perf_tester *tester = static_cast<skainet_perf_tester*>(arg);
     int afe_chunksize = tester->afe_handle->get_fetch_chunksize(tester->afe_data);
 
     int mn_chunksize = tester->multinet->get_samp_chunksize(tester->mn_data);
@@ -422,39 +451,53 @@ void detect_task(void *arg)
     tester->early_timeout = 0;
     tester->mn_reseted = 0;
 
-    while (1) {
-        afe_fetch_result_t* res = tester->afe_handle->fetch(tester->afe_data);
+    while (1)
+    {
+        afe_fetch_result_t *res = tester->afe_handle->fetch(tester->afe_data);
         tester->processed_sample_num += mn_chunksize;
-        if (!res || res->ret_value == ESP_FAIL) {
+        if (!res || res->ret_value == ESP_FAIL)
+        {
             break;
         }
 
-        curr_time_s = (float) tester->processed_sample_num / 16000.0;
+        curr_time_s = (float)tester->processed_sample_num / 16000.0;
 
-        if (curr_time_s > tester->gt_region_boundary[gt_idx]) {
+        if (curr_time_s > tester->gt_region_boundary[gt_idx])
+        {
             // we need to move to next region
             // printf("move from region %d to %d, %d\n", gt_idx, gt_idx+1, current_region_detected);
-            if (tester->gt_region_type[gt_idx] == -1 && tester->current_region_wn_detected == 0) {
+            if (tester->gt_region_type[gt_idx] == -1 && tester->current_region_wn_detected == 0)
+            {
                 // current region is wake word but not detected
                 tester->file_wn_miss_times[file_id]++;
                 tester->woke_up = 0;
-            } else if (tester->gt_region_type[gt_idx] > 0 && tester->current_region_mn_detected == 0) {
+            }
+            else if (tester->gt_region_type[gt_idx] > 0 && tester->current_region_mn_detected == 0)
+            {
                 // current region is command but not detected
-                if (tester->mn_active == 1) {
+                if (tester->mn_active == 1)
+                {
                     // mn still active
                     // printf("command miss, mn active\n");
                     tester->file_mn_miss_times[file_id]++;
-                } else {
+                }
+                else
+                {
                     // mn not active, three cases
-                    if (tester->early_timeout == 1) {
+                    if (tester->early_timeout == 1)
+                    {
                         // case 1 early timeout
                         // printf("command miss by early timeout\n");
                         tester->file_mn_miss_by_early_timeout_times[file_id]++;
-                    } else if (tester->woke_up == 0) {
+                    }
+                    else if (tester->woke_up == 0)
+                    {
                         // case 2 wake net is not triggered
                         // printf("command miss by wn\n");
                         tester->file_mn_miss_by_wn_times[file_id]++;
-                    } else {
+                    }
+                    else
+                    {
                         // case 3, normal time out, this is the last command in region
                         // printf("command miss, mn inactive\n");
                         tester->file_mn_miss_times[file_id]++;
@@ -462,28 +505,32 @@ void detect_task(void *arg)
                 }
             }
             gt_idx += 1;
-            curr_time_s = (float) tester->processed_sample_num / 16000.0;
+            curr_time_s = (float)tester->processed_sample_num / 16000.0;
 
             // reset some parameters
             tester->mn_reseted = 0;
             tester->current_region_mn_detected = 0;
             tester->current_region_wn_detected = 0;
 
-            if (tester->gt_region_type[gt_idx] == -1) {
+            if (tester->gt_region_type[gt_idx] == -1)
+            {
                 // new region is wn region, it is a new section
                 tester->woke_up = 0;
                 tester->early_timeout = 0;
             }
-        } else if (tester->force_reset == 1 && tester->mn_reseted == 0 && tester->gt_region_type[gt_idx] > 0 && tester->gt_region_boundary[gt_idx] - curr_time_s <= 1.0) {
+        }
+        else if (tester->force_reset == 1 && tester->mn_reseted == 0 && tester->gt_region_type[gt_idx] > 0 && tester->gt_region_boundary[gt_idx] - curr_time_s <= 1.0)
+        {
             // if force reset, current region has not been reseted yet and current time is within 1 sec to the boundary
             tester->multinet->clean(tester->mn_data);
             tester->mn_reseted = 1;
-            if (gt_idx < tester->gt_num_regions - 1 && tester->gt_region_type[gt_idx+1] == -1 && tester->mn_active == 1){
+            if (gt_idx < tester->gt_num_regions - 1 && tester->gt_region_type[gt_idx + 1] == -1 && tester->mn_active == 1)
+            {
                 // if next region is wake word and mn hasn't time out, force time out
                 // printf("force timeout\n");
                 tester->mn_active = 0;
-                tester->woke_up = 1;  // this section is woke up because mn_active was 1
-                tester->early_timeout = 0;  // this is the last region in section, so not a early timeout
+                tester->woke_up = 1;       // this section is woke up because mn_active was 1
+                tester->early_timeout = 0; // this is the last region in section, so not a early timeout
             }
         }
 
@@ -491,106 +538,144 @@ void detect_task(void *arg)
         // make sure the last region boundary in csv is at least number of total length of current audio
         assert(curr_time_s <= tester->gt_region_boundary[gt_idx]);
 
-        if (res->wakeup_state == WAKENET_DETECTED) {
+        if (res->wakeup_state == WAKENET_DETECTED)
+        {
             tester->woke_up = 1;
-            if (tester->gt_region_type[gt_idx] == -1) {
+            if (tester->gt_region_type[gt_idx] == -1)
+            {
                 // wake word region
-                if (curr_time_s < (tester->gt_region_end[gt_idx] - 1.0)) {
+                if (curr_time_s < (tester->gt_region_end[gt_idx] - 1.0))
+                {
                     // detected too early, one second earlier than when speech actual ends
-                    printf("wn detected too early, %f, %f\n",curr_time_s, tester->gt_region_end[gt_idx]);
-                } else {
+                    printf("wn detected too early, %f, %f\n", curr_time_s, tester->gt_region_end[gt_idx]);
+                }
+                else
+                {
                     tester->file_wn_det_times[file_id]++;
                     float delay = curr_time_s - tester->gt_region_end[gt_idx];
                     tester->file_wn_delay_seconds[file_id] += delay;
-                    if (delay > tester->file_wn_max_delay_seconds[file_id]) {
+                    if (delay > tester->file_wn_max_delay_seconds[file_id])
+                    {
                         tester->file_wn_max_delay_seconds[file_id] = delay;
                     }
                     tester->current_region_wn_detected = 1;
                     // printf("wn detected, %f, %f\n",curr_time_s, tester->gt_region_end[gt_idx]);
                 }
-            } else {
+            }
+            else
+            {
                 printf("wake word is detected at a command region. %d\n", gt_idx);
             }
             tester->multinet->clean(tester->mn_data);
-        } else if (res->wakeup_state == WAKENET_CHANNEL_VERIFIED) {
+        }
+        else if (res->wakeup_state == WAKENET_CHANNEL_VERIFIED)
+        {
             tester->mn_active = 1;
         }
 
-        if (tester->mn_active == 1) {
+        if (tester->mn_active == 1)
+        {
             RSR(CCOUNT, c0);
             esp_mn_state_t mn_state = tester->multinet->detect(tester->mn_data, res->data);
             RSR(CCOUNT, c1);
             tester->mn_running_time += c1 - c0;
-            if (mn_state == ESP_MN_STATE_DETECTED) {
+            if (mn_state == ESP_MN_STATE_DETECTED)
+            {
                 esp_mn_results_t *mn_result = tester->multinet->get_results(tester->mn_data);
-                if (tester->gt_region_type[gt_idx] > 0) {
-                    if (curr_time_s < (tester->gt_region_end[gt_idx] - 1.0)) {
+                if (tester->gt_region_type[gt_idx] > 0)
+                {
+                    if (curr_time_s < (tester->gt_region_end[gt_idx] - 1.0))
+                    {
                         // detected too early, one second earlier than when speech actual ends
                         printf("mn detected too early, classified as incorrect\n");
                         tester->file_mn_incorrect_times[file_id]++;
-                    } else {
+                    }
+                    else
+                    {
                         // cmd region
-                        if (mn_result->command_id[0] == tester->gt_region_type[gt_idx]) {
+                        if (mn_result->command_id[0] == tester->gt_region_type[gt_idx])
+                        {
                             // correct command
                             tester->file_mn_correct_times[file_id]++;
                             float delay = curr_time_s - tester->gt_region_end[gt_idx];
                             tester->file_mn_delay_seconds[file_id] += delay;
-                            if (delay > tester->file_mn_max_delay_seconds[file_id]) {
+                            if (delay > tester->file_mn_max_delay_seconds[file_id])
+                            {
                                 printf("new max delay %f, idx %d (%f -> %f)\n", delay, gt_idx, curr_time_s, tester->gt_region_end[gt_idx]);
                                 tester->file_mn_max_delay_seconds[file_id] = delay;
                             }
                             // printf("command correct, %f %f %f\n", curr_time_s, tester->gt_region_end[gt_idx], tester->file_mn_delay_seconds[file_id]);
-                        } else {
+                        }
+                        else
+                        {
                             // incorrect command
                             tester->file_mn_incorrect_times[file_id]++;
                             // printf("command incorrect, %f %f %f\n", curr_time_s, tester->gt_region_end[gt_idx], tester->file_mn_delay_seconds[file_id]);
                         }
                         tester->current_region_mn_detected = 1;
                     }
-                } else {
+                }
+                else
+                {
                     printf("command is detected at a wake word region\n");
                 }
                 tester->multinet->clean(tester->mn_data);
             }
 
-            if (mn_state == ESP_MN_STATE_TIMEOUT) {
+            if (mn_state == ESP_MN_STATE_TIMEOUT)
+            {
                 tester->mn_active = 0;
                 tester->multinet->clean(tester->mn_data);
                 tester->file_mn_timeout_times[file_id]++;
-                if (gt_idx < tester->gt_num_regions - 1 && tester->gt_region_type[gt_idx+1] > 0 && tester->gt_region_type[gt_idx] > 0) {
+                if (gt_idx < tester->gt_num_regions - 1 && tester->gt_region_type[gt_idx + 1] > 0 && tester->gt_region_type[gt_idx] > 0)
+                {
                     // next region is not wake word, means this time out is early
                     // printf("early time out, %f\n", curr_time_s);
                     tester->file_mn_early_timeout_times[file_id]++;
                     tester->early_timeout = 1;
-                } else {
+                }
+                else
+                {
                     // printf("time out, %f\n", curr_time_s);
                     tester->early_timeout = 0;
                 }
             }
         }
 
-        if (file_id != tester->file_id || tester->test_done) {
+        if (file_id != tester->file_id || tester->test_done)
+        {
             // finish up last region of current file first
-            if (tester->gt_region_type[gt_idx] == -1 && tester->current_region_wn_detected == 0) {
+            if (tester->gt_region_type[gt_idx] == -1 && tester->current_region_wn_detected == 0)
+            {
                 // current region is wake word but not detected
                 tester->file_wn_miss_times[file_id]++;
-            } else if (tester->gt_region_type[gt_idx] > 0 && tester->current_region_mn_detected == 0) {
+            }
+            else if (tester->gt_region_type[gt_idx] > 0 && tester->current_region_mn_detected == 0)
+            {
                 // current region is command but not detected
-                if (tester->mn_active == 1) {
+                if (tester->mn_active == 1)
+                {
                     // mn still active
                     // printf("command miss, mn active\n");
                     tester->file_mn_miss_times[file_id]++;
-                } else {
+                }
+                else
+                {
                     // mn not active, three cases
-                    if (tester->early_timeout == 1) {
+                    if (tester->early_timeout == 1)
+                    {
                         // case 1 early timeout
                         // printf("command miss by early timeout\n");
                         tester->file_mn_miss_by_early_timeout_times[file_id]++;
-                    } else if (tester->woke_up == 0) {
+                    }
+                    else if (tester->woke_up == 0)
+                    {
                         // case 2 wake net is not triggered
                         // printf("command miss by wn\n");
                         tester->file_mn_miss_by_wn_times[file_id]++;
-                    } else {
+                    }
+                    else
+                    {
                         // case 3, normal time out, this is the last command in region
                         // printf("command miss, mn inactive\n");
                         tester->file_mn_miss_times[file_id]++;
@@ -599,7 +684,8 @@ void detect_task(void *arg)
             }
         }
 
-        if (file_id != tester->file_id) {
+        if (file_id != tester->file_id)
+        {
             // new file
             file_id = tester->file_id;
             // reset ground truth
@@ -612,25 +698,28 @@ void detect_task(void *arg)
             tester->current_region_wn_detected = 0;
             tester->woke_up = 0;
             tester->early_timeout = 0;
-        } else if (tester->test_done) {
+        }
+        else if (tester->test_done)
+        {
             // finish up last region of current file first
             break;
         }
     }
-    if (tester->mn_data) {
+    if (tester->mn_data)
+    {
         tester->multinet->destroy(tester->mn_data);
         tester->mn_data = NULL;
     }
     vTaskDelete(NULL);
 }
 
-
 void add_test_commands(void *arg)
 {
     printf("Clear pre-defined command list and create one for perf_tester.\n");
     esp_mn_commands_clear();
-    skainet_perf_tester *tester = arg;
-    if (strcmp(tester->multinet->get_language(tester->mn_data), ESP_MN_ENGLISH) == 0) {
+    skainet_perf_tester *tester = static_cast<skainet_perf_tester*>(arg);
+    if (strcmp(tester->multinet->get_language(tester->mn_data), ESP_MN_ENGLISH) == 0)
+    {
         esp_mn_commands_add(1, "TELL ME A JOKE");
         esp_mn_commands_add(2, "SING A SONG");
         esp_mn_commands_add(3, "PLAY NEWS CHANNEL");
@@ -680,7 +769,9 @@ void add_test_commands(void *arg)
         esp_mn_commands_add(42, "HEATING MODE");
         esp_mn_commands_add(43, "VENTILATION MODE");
         esp_mn_commands_add(44, "DEHUMIDIFY MODE");
-    } else {
+    }
+    else
+    {
         esp_mn_commands_add(25, "da kai kong tiao");
         esp_mn_commands_add(74, "tiao dao er shi ba du");
         esp_mn_commands_add(75, "tiao dao er shi du");
@@ -701,7 +792,6 @@ void add_test_commands(void *arg)
     esp_mn_commands_print();
 }
 
-
 void offline_mn_tester(const char *csv_file,
                        const char *log_file,
                        const esp_afe_sr_iface_t *afe_handle,
@@ -711,7 +801,7 @@ void offline_mn_tester(const char *csv_file,
                        int audio_type,
                        perf_tester_config_t *config)
 {
-    skainet_perf_tester *tester = malloc(sizeof(skainet_perf_tester));
+    skainet_perf_tester *tester = (skainet_perf_tester*)malloc(sizeof(skainet_perf_tester));
     tester->config = config;
     // ringbuffer init
     tester->tester_mem_size = heap_caps_get_free_size(MALLOC_CAP_8BIT);
@@ -725,30 +815,32 @@ void offline_mn_tester(const char *csv_file,
     tester->max_file_num = 50;
     tester->file_id = 0;
     tester->file_num = 0;
-    tester->file_list = malloc(sizeof(char *) * tester->max_file_num);
-    tester->gt_file_list = malloc(sizeof(char *) * tester->max_file_num);
-    tester->file_gt_num_wake = malloc(sizeof(int) * tester->max_file_num);
-    tester->file_gt_num_cmd = malloc(sizeof(int) * tester->max_file_num);
+    tester->file_list = (char **)malloc(sizeof(char *) * tester->max_file_num);
+    tester->gt_file_list = (char **)malloc(sizeof(char *) * tester->max_file_num);
+    tester->file_gt_num_wake = (int *)malloc(sizeof(int) * tester->max_file_num);
+    tester->file_gt_num_cmd = (int *)malloc(sizeof(int) * tester->max_file_num);
 
-    tester->file_wn_det_times = calloc(tester->max_file_num, sizeof(int));
-    tester->file_wn_miss_times = calloc(tester->max_file_num, sizeof(int));
-    tester->file_wn_delay_seconds = calloc(tester->max_file_num, sizeof(float));
-    tester->file_wn_max_delay_seconds = calloc(tester->max_file_num, sizeof(float));
+    tester->file_wn_det_times = (int *)calloc(tester->max_file_num, sizeof(int));
+    tester->file_wn_miss_times = (int *)calloc(tester->max_file_num, sizeof(int));
+    tester->file_wn_delay_seconds = (float *)calloc(tester->max_file_num, sizeof(float));
+    tester->file_wn_max_delay_seconds = (float *)calloc(tester->max_file_num, sizeof(float));
 
-    tester->file_mn_correct_times = calloc(tester->max_file_num, sizeof(int));
-    tester->file_mn_incorrect_times = calloc(tester->max_file_num, sizeof(int));
-    tester->file_mn_miss_times = calloc(tester->max_file_num, sizeof(int));
-    tester->file_mn_miss_by_wn_times = calloc(tester->max_file_num, sizeof(int));
-    tester->file_mn_miss_by_early_timeout_times = calloc(tester->max_file_num, sizeof(int));
-    tester->file_mn_timeout_times = calloc(tester->max_file_num, sizeof(int));
-    tester->file_mn_early_timeout_times = calloc(tester->max_file_num, sizeof(int));
-    tester->file_mn_delay_seconds = calloc(tester->max_file_num, sizeof(float));
-    tester->file_mn_max_delay_seconds = calloc(tester->max_file_num, sizeof(float));
+    tester->file_mn_correct_times = (int *)calloc(tester->max_file_num, sizeof(int));
+    tester->file_mn_incorrect_times = (int *)calloc(tester->max_file_num, sizeof(int));
+    tester->file_mn_miss_times = (int *)calloc(tester->max_file_num, sizeof(int));
+    tester->file_mn_miss_by_wn_times = (int *)calloc(tester->max_file_num, sizeof(int));
+    tester->file_mn_miss_by_early_timeout_times = (int *)calloc(tester->max_file_num, sizeof(int));
+    tester->file_mn_timeout_times = (int *)calloc(tester->max_file_num, sizeof(int));
+    tester->file_mn_early_timeout_times = (int *)calloc(tester->max_file_num, sizeof(int));
+    tester->file_mn_delay_seconds = (float *)calloc(tester->max_file_num, sizeof(float));
+    tester->file_mn_max_delay_seconds = (float *)calloc(tester->max_file_num, sizeof(float));
 
-    tester->audio_type = audio_type;
-    for (int i = 0; i < tester->max_file_num; i++) {
-        tester->file_list[i] = calloc(FATFS_PATH_LENGTH_MAX, sizeof(char));
-        tester->gt_file_list[i] = calloc(FATFS_PATH_LENGTH_MAX, sizeof(char));
+    tester->audio_type = (tester_audio_t)audio_type;
+
+    for (int i = 0; i < tester->max_file_num; i++)
+    {
+        tester->file_list[i] = (char *)calloc(FATFS_PATH_LENGTH_MAX, sizeof(char));
+        tester->gt_file_list[i] = (char *)calloc(FATFS_PATH_LENGTH_MAX, sizeof(char));
     }
 
     tester->gt_region_type = NULL;
@@ -757,7 +849,7 @@ void offline_mn_tester(const char *csv_file,
 
     tester->csv_file = (char *)csv_file;
     read_csv_file(tester);
-    tester->log_file = (char *) log_file;
+    tester->log_file = (char *)log_file;
 
     tester->force_reset = 0;
     tester->test_done = 0;
@@ -787,7 +879,7 @@ void offline_mn_tester(const char *csv_file,
     // the memory after AFE init
     m2 = heap_caps_get_free_size(MALLOC_CAP_8BIT);
     sm2 = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
-    tester->mn_mem_size = m1 - m2;               // the memory size of mn init
+    tester->mn_mem_size = m1 - m2; // the memory size of mn init
     tester->mn_sram_size = sm1 - sm2;
     tester->mn_active = 0;
 
@@ -795,17 +887,20 @@ void offline_mn_tester(const char *csv_file,
     tester->wave_time = 0;
     tester->mn_running_time = 0;
 
-    if (tester->file_num == 0) {
+    if (tester->file_num == 0)
+    {
         print_mn_report(tester);
-        return ;
+        return;
     }
 
     // printf("The memory info after init:\n");
-    if (audio_type == TESTER_WAV_3CH) {
+    if (audio_type == TESTER_WAV_3CH)
+    {
         xTaskCreatePinnedToCore(&wav_feed_task, "wav_feed_task", 4 * 1024, (void *)tester, 8, NULL, 1);
     }
 
-    if (audio_type == TESTER_WAV_3CH) {
+    if (audio_type == TESTER_WAV_3CH)
+    {
         xTaskCreatePinnedToCore(&detect_task, "detect_task", 4 * 1024, (void *)tester, 8, NULL, 0);
         vTaskDelay(2000 / portTICK_PERIOD_MS);
     }

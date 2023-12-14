@@ -1,4 +1,4 @@
-#include "WifiSoftApp.h"
+#include "WifiSoftApp.hpp"
 
 const int WIFI_CONNECTED_EVENT = BIT0;
 static const char *TAG = "app";
