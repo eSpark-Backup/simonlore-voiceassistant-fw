@@ -34,6 +34,7 @@ static audio_element_err_t mp3_music_read_cb(audio_element_handle_t el, char *bu
     return AEL_IO_OK; // or AEL_IO_DONE if appropriate for your use case;
 }
 
+
 void play(AudioFrame audio)
 {
     audio_pipeline_handle_t pipeline;

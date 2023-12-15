@@ -4,7 +4,7 @@ const int WIFI_CONNECTED_EVENT = BIT0;
 static const char *TAG = "app";
 static EventGroupHandle_t wifi_event_group;
 /* Event handler for catching system events */
-static void event_handler(void *arg, esp_event_base_t event_base,
+void WifiProvisioning::event_handler(void *arg, esp_event_base_t event_base,
                           int32_t event_id, void *event_data)
 {
 #ifdef CONFIG_EXAMPLE_RESET_PROV_MGR_ON_FAILURE
@@ -78,14 +78,14 @@ static void event_handler(void *arg, esp_event_base_t event_base,
     }
 }
 
-static void wifi_init_sta(void)
+void WifiProvisioning::wifi_init_sta(void)
 {
     /* Start Wi-Fi in station mode */
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_start());
 }
 
-static void get_device_service_name(char *service_name, size_t max)
+void WifiProvisioning::get_device_service_name(char *service_name, size_t max)
 {
     uint8_t eth_mac[6];
     const char *ssid_prefix = "PROV_";
@@ -98,7 +98,7 @@ static void get_device_service_name(char *service_name, size_t max)
  * The data format can be chosen by applications. Here, we are using plain ascii text.
  * Applications can choose to use other formats like protobuf, JSON, XML, etc.
  */
-esp_err_t custom_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, ssize_t inlen,
+esp_err_t WifiProvisioning::custom_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, ssize_t inlen,
                                    uint8_t **outbuf, ssize_t *outlen, void *priv_data)
 {
     if (inbuf)
@@ -117,7 +117,7 @@ esp_err_t custom_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, ss
     return ESP_OK;
 }
 
-void softap(void)
+void WifiProvisioning::softap(void)
 {
     /* Initialize NVS partition */
     esp_err_t ret = nvs_flash_init();

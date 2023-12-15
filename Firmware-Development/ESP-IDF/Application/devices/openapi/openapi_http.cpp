@@ -10,7 +10,7 @@ static const char *TAG = "openapi-http";
 char buffer[MAX_HTTP_RECV_BUFFER] = {0};
 uint32_t size =0;
 
-void spiffs_init() 
+void OpenAI::spiffs_init() 
 {
     ESP_LOGI(TAG, "Initializing SPIFFS");
 
@@ -39,7 +39,8 @@ void spiffs_init()
     }
 }
 
-const char *getFileName(const char *filePath) {
+const char *getFileName(const char *filePath)
+{
     // Find the position of the last '/' in the file path
     char *lastSlash = strrchr(filePath, '/');
 
@@ -56,7 +57,7 @@ const char *getFileName(const char *filePath) {
 }
 
 // Event handler for HTTP events
-esp_err_t _http_event_handler(esp_http_client_event_t *evt)
+esp_err_t  _http_event_handler(esp_http_client_event_t *evt)
 {
     static char *output_buffer;  // Buffer to store response of http request from event handler
     static int output_len;       // Stores number of bytes read
@@ -131,7 +132,7 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
     return ESP_OK;
 }
 
-void send_post_request(const char* api_key, const char* file_path) 
+void OpenAI::send_post_request(const char* api_key, const char* file_path) 
 {
     esp_http_client_config_t config = {
         .url = "https://api.openai.com/v1/audio/transcriptions",//"http://192.168.18.191:8000",
@@ -161,7 +162,7 @@ void send_post_request(const char* api_key, const char* file_path)
 
     const char* head_boundary = "--esp32boundary\r\n";
     const char* head_template = "Content-Disposition: form-data; name=\"file\"; filename=\"%s\"\r\n\r\n";
-    const char* filename = getFileName(file_path);
+    const char* filename = OpenAI::getFileName(file_path);
     size_t resultSize = strlen(head_template) + strlen(filename);
 
     // Allocate memory for the final string
@@ -226,7 +227,7 @@ void send_post_request(const char* api_key, const char* file_path)
     free(head_final);
 }
 
-void fillWavHeader(WavHeader *header, int dataSize) {
+void OpenAI::fillWavHeader(WavHeader *header, int dataSize) {
     // Fill in the header values
     memcpy(header->riff, "RIFF", 4);
     header->fileSize = dataSize + 36;  // Wave file size excluding first 44 bytes
@@ -243,7 +244,7 @@ void fillWavHeader(WavHeader *header, int dataSize) {
     header->dataSize = dataSize;  // Size of the data chunk
 }
 
-void transcribe_wav_file(int16_t* stream, uint32_t size, char* received_buf) 
+void OpenAI::transcribe_wav_file(int16_t* stream, uint32_t size, char* received_buf) 
 {
     esp_http_client_config_t config = 
     {
@@ -321,7 +322,7 @@ void transcribe_wav_file(int16_t* stream, uint32_t size, char* received_buf)
     free(head_final);
 }
 
-char* createJson(const char* key, const char* value, ...) 
+char* OpenAI::createJson(const char* key, const char* value, ...) 
 {
     cJSON *root = cJSON_CreateObject();
     
@@ -346,7 +347,7 @@ char* createJson(const char* key, const char* value, ...)
     return jsonString;
 }
 
-void text_completion(char* transmit_buf, char* received_buf) 
+void OpenAI::text_completion(char* transmit_buf, char* received_buf) 
 {
     esp_http_client_config_t config = 
     {
@@ -382,7 +383,7 @@ void text_completion(char* transmit_buf, char* received_buf)
     esp_http_client_cleanup(client);
 }
 
-char* process_response(const char* response) 
+char* OpenAI::process_response(const char* response) 
 {
     char* result = NULL;
 
@@ -415,7 +416,7 @@ char* process_response(const char* response)
     return result;
 }
 
-uint32_t create_speech(char* transmit_buf, char* received_buf) 
+uint32_t OpenAI::create_speech(char* transmit_buf, char* received_buf) 
 {
     esp_http_client_config_t config = 
     {
@@ -451,7 +452,7 @@ uint32_t create_speech(char* transmit_buf, char* received_buf)
     return size;
 }
 
-char* processTranscribeResponse(char* response)
+char* OpenAI::processTranscribeResponse(char* response)
 {
     char* result = NULL;
     

@@ -13,15 +13,20 @@
 #include <wifi_provisioning/scheme_softap.h>
 #include <wifi_provisioning/manager.h>
 
+#define PROV_QR_VERSION "v1"
+#define PROV_TRANSPORT_SOFTAP "softap"
 
-#define PROV_QR_VERSION         "v1"
-#define PROV_TRANSPORT_SOFTAP   "softap"
+class WifiProvisioning
+{
+public:
 
-static void event_handler(void* arg, esp_event_base_t event_base,
-                          int32_t event_id, void* event_data);
+    void softap(void);
+    static void event_handler(void *arg, esp_event_base_t event_base,
+                              int32_t event_id, void *event_data);
 
-static void wifi_init_sta(void);
-static void get_device_service_name(char *service_name, size_t max);
-esp_err_t custom_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, ssize_t inlen,
-                                          uint8_t **outbuf, ssize_t *outlen, void *priv_data);
-void softap(void);
+    static void wifi_init_sta(void);
+    static void get_device_service_name(char *service_name, size_t max);
+    esp_err_t custom_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, ssize_t inlen,
+                                       uint8_t **outbuf, ssize_t *outlen, void *priv_data);
+    
+};

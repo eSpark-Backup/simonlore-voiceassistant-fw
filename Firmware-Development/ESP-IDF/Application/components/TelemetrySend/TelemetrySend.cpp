@@ -11,7 +11,7 @@
 
 // Function to send telemetry data to the server using a POST request
 // Function to send telemetry data to the server using a POST request
-void send_telemetry_data(const char *jsonData)
+void TelemetrySend::send_telemetry_data(const char *jsonData)
 {
     esp_http_client_config_t config = {
         .url = SERVER_URL,

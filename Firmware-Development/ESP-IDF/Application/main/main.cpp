@@ -43,6 +43,10 @@ const char *TAG = "ESP-SKAINET";
 uint32_t record(int16_t *buff, uint16_t seconds);
 static esp_err_t input_key_service_cb(periph_service_handle_t handle, periph_service_event_t *evt, void *ctx);
 Json *json = new Json();
+WifiProvisioning *wifiProvisioning = new WifiProvisioning();
+TelemetrySend *telemetrySend = new TelemetrySend();
+OpenAI *openAI = new OpenAI();
+// PlayAudio *playAudio = new PlayAudio();
 
 void feed_Task(void *arg)
 {
@@ -120,20 +124,20 @@ void detect_Task(void *arg)
 
         task_flag = 0;
 
-        transcribe_wav_file(audioBuffer, audioSize, transcribeResponseBuf);
+        openAI->transcribe_wav_file(audioBuffer, audioSize, transcribeResponseBuf);
         ESP_LOGI(TAG, "%s", transcribeResponseBuf);
-        char *transcribedText = processTranscribeResponse(transcribeResponseBuf); // deallocation needed
+        char *transcribedText = openAI->processTranscribeResponse(transcribeResponseBuf); // deallocation needed
 
         if (transcribedText)
         {
-            char *completionRequestJson = createJson("model", "gpt-3.5-turbo-instruct",
+            char *completionRequestJson = json->createJson("model", "gpt-3.5-turbo-instruct",
                                                      "prompt", transcribedText,
                                                      NULL); // deallocation needed
 
             ESP_LOGI(TAG, "%s\n", completionRequestJson);
-            text_completion(completionRequestJson, completionResponseBuf);
+            openAI->text_completion(completionRequestJson, completionResponseBuf);
 
-            char *completionText = process_response(completionResponseBuf); // deallocation needed
+            char *completionText = openAI->process_response(completionResponseBuf); // deallocation needed
             if (completionText)
             {
                 char *speechRequestJson = json->createJson("model", "tts-1",
@@ -144,12 +148,12 @@ void detect_Task(void *arg)
 
                 char *promptAndResponse = json->createJson("prompt", transcribedText, "response", completionText, NULL);
 
-                send_telemetry_data(promptAndResponse); // Post prompt and respone telemetry to the server
+                telemetrySend->send_telemetry_data(promptAndResponse); // Post prompt and respone telemetry to the server
 
                 free(promptAndResponse);
                 ESP_LOGI(TAG, "%s\n", speechRequestJson);
 
-                uint32_t len = create_speech(speechRequestJson, speechBuffer);
+                uint32_t len = openAI->create_speech(speechRequestJson, speechBuffer);
                 // ESP_LOGE(TAG, "free block %d ",heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM));
                 AudioFrame audio = {.data = speechBuffer, .len = len};
                 play(audio);
@@ -183,15 +187,16 @@ extern "C" void app_main()
     ESP_ERROR_CHECK(ret);
 
     ESP_ERROR_CHECK(esp_board_init(16000, 1, 16));
-
-    softap();
+    // Remember to set SofyAp for Wifi provision from menuConfig->Example configuration->provisoning transport -> set to Soft AP
+    // Other wise the controller will not be able to detect the Wifi and it will reboot frequently and cause a problem
+    wifiProvisioning->softap();
 
     printf("Wifi Connected Successfully\n");
     // Create JSON data
     char *jsonData = json->createJson("Wifi Status", "Connected", "Ready to connect with the OpenAI", "Yes",
                                       NULL);
 
-    send_telemetry_data(jsonData); // Post Health telemetry to the server
+    telemetrySend->send_telemetry_data(jsonData); // Post Health telemetry to the server
 
     free(jsonData);
     // Free the allocated memory for jsonData
@@ -234,34 +239,7 @@ extern "C" void app_main()
     }
 
     afe_handle = (esp_afe_sr_iface_t *)&ESP_AFE_SR_HANDLE;
-    afe_config_t afe_config = {
-        .aec_init = true,
-        .se_init = true,
-        .vad_init = true,
-        .wakenet_init = true,
-        .voice_communication_init = false,
-        .voice_communication_agc_init = false,
-        .voice_communication_agc_gain = 15,
-        .vad_mode = VAD_MODE_3,
-        .wakenet_model_name = NULL,
-        .wakenet_model_name_2 = NULL,
-        .wakenet_mode = DET_MODE_2CH_90,
-        .afe_mode = SR_MODE_LOW_COST,
-        .afe_perferred_core = 0,
-        .afe_perferred_priority = 5,
-        .afe_ringbuf_size = 50,
-        .memory_alloc_mode = AFE_MEMORY_ALLOC_MORE_PSRAM,
-        .afe_linear_gain = 1.0,
-        .agc_mode = AFE_MN_PEAK_AGC_MODE_2,
-        .pcm_config = {
-            .total_ch_num = 3,
-            .mic_num = 2,
-            .ref_num = 1,
-            .sample_rate = 16000,
-        },
-        .debug_init = false,
-        .debug_hook = {{AFE_DEBUG_HOOK_MASE_TASK_IN, NULL}, {AFE_DEBUG_HOOK_FETCH_TASK_IN, NULL}},
-    };
+    afe_config_t afe_config = AFE_CONFIG_MY_DEFAULT();
     afe_config.memory_alloc_mode = AFE_MEMORY_ALLOC_MORE_PSRAM;
     afe_config.wakenet_init = true;
     afe_config.wakenet_model_name = wn_name;
