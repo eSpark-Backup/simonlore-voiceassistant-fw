@@ -131,8 +131,10 @@ void detect_Task(void *arg)
         if (transcribedText)
         {
             char *completionRequestJson = json->createJson("model", "gpt-3.5-turbo-instruct",
-                                                     "prompt", transcribedText,
-                                                     NULL); // deallocation needed
+                                                           "prompt", transcribedText,
+                                                            "max_tokens" , 16,
+                                                             "temperature", 0.5,
+                                                           NULL); // deallocation needed
 
             ESP_LOGI(TAG, "%s\n", completionRequestJson);
             openAI->text_completion(completionRequestJson, completionResponseBuf);
@@ -187,13 +189,14 @@ extern "C" void app_main()
     ESP_ERROR_CHECK(ret);
 
     ESP_ERROR_CHECK(esp_board_init(16000, 1, 16));
+
     // Remember to set SofyAp for Wifi provision from menuConfig->Example configuration->provisoning transport -> set to Soft AP
     // Other wise the controller will not be able to detect the Wifi and it will reboot frequently and cause a problem
     wifiProvisioning->softap();
 
     printf("Wifi Connected Successfully\n");
     // Create JSON data
-    char *jsonData = json->createJson("Wifi Status", "Connected", "Ready to connect with the OpenAI", "Yes",
+    char *jsonData = json->createJson("Wifi Status", 5, "Ready to connect with the OpenAI", "Yes",
                                       NULL);
 
     telemetrySend->send_telemetry_data(jsonData); // Post Health telemetry to the server
