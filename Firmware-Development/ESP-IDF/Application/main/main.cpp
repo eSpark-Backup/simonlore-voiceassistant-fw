@@ -29,6 +29,7 @@
 #include "TelemetrySend.hpp"
 #include <cJSON.h>
 #include "main.hpp"
+#include <utility>
 
 static esp_afe_sr_iface_t *afe_handle = NULL;
 static esp_afe_sr_data_t *afe_data = NULL;
@@ -130,11 +131,11 @@ void detect_Task(void *arg)
 
         if (transcribedText)
         {
-            char *completionRequestJson = json->createJson("model", "gpt-3.5-turbo-instruct",
-                                                           "prompt", transcribedText,
-                                                            "max_tokens" , 16,
-                                                             "temperature", 0.5,
-                                                           NULL); // deallocation needed
+
+            char *completionRequestJson = json->createJson(std::make_pair("model", "gpt-3.5-turbo-instruct"),
+                                                           std::make_pair("prompt", transcribedText),
+                                                           std::make_pair("max_tokens", "five"),
+                                                           std::make_pair("temperature", "(double)0.5")); // deallocation needed
 
             ESP_LOGI(TAG, "%s\n", completionRequestJson);
             openAI->text_completion(completionRequestJson, completionResponseBuf);
@@ -142,13 +143,12 @@ void detect_Task(void *arg)
             char *completionText = openAI->process_response(completionResponseBuf); // deallocation needed
             if (completionText)
             {
-                char *speechRequestJson = json->createJson("model", "tts-1",
-                                                           "input", completionText,
-                                                           "voice", "alloy",
-                                                           "response_data", "mp3",
-                                                           NULL); // deallocation needed
+                char *speechRequestJson = json->createJson(std::make_pair("model", "tts-1"),
+                                                           std::make_pair("input", completionText),
+                                                           std::make_pair("voice", "alloy"),
+                                                           std::make_pair("response_data", "mp3")); // deallocation needed
 
-                char *promptAndResponse = json->createJson("prompt", transcribedText, "response", completionText, NULL);
+                char *promptAndResponse = json->createJson(std::make_pair("prompt", transcribedText), std::make_pair("response", completionText));
 
                 telemetrySend->send_telemetry_data(promptAndResponse); // Post prompt and respone telemetry to the server
 
@@ -196,8 +196,8 @@ extern "C" void app_main()
 
     printf("Wifi Connected Successfully\n");
     // Create JSON data
-    char *jsonData = json->createJson("Wifi Status", 5, "Ready to connect with the OpenAI", "Yes",
-                                      NULL);
+
+    char *jsonData = json->createJson(std::make_pair("Wifi Status", "five "), std::make_pair("Ready to connect with the OpenAI", "Yes"));
 
     telemetrySend->send_telemetry_data(jsonData); // Post Health telemetry to the server
 
