@@ -12,20 +12,24 @@
 class Json
 {
 public:
+    void JsonOverRide(cJSON *root, const char *key, double value)
+    {
+        printf("double type\n");
+        cJSON_AddNumberToObject(root, key, static_cast<double>(value));
+    }
+
+    void JsonOverRide(cJSON *root, const char *key, const char *value)
+    {
+        printf("const char* type\n");
+        cJSON_AddStringToObject(root, key, static_cast<const char *>(value));
+    }
+
     template <typename T, typename... Args>
     void createJsonHelper(cJSON *root, T orderedPair, Args... args)
     {
-        const char *key = (orderedPair.first);
-        auto value = (orderedPair.second);
-        // if (std::is_same<value, const char *>::value)
-        // {
-        cJSON_AddStringToObject(root, key, value);
-        // }
-        // else if (std::is_same<value, double>::value)
-        // {
-        //     cJSON_AddNumberToObject(root, key, arg);
-        // }
-        // cJSON_AddStringToObject(root, key, value);
+        const char *key = orderedPair.first;
+        auto value = orderedPair.second;
+        JsonOverRide(root, key, value);
         if constexpr (sizeof...(Args) > 0)
         {
             createJsonHelper(root, args...);

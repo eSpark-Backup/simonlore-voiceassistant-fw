@@ -134,8 +134,8 @@ void detect_Task(void *arg)
 
             char *completionRequestJson = json->createJson(std::make_pair("model", "gpt-3.5-turbo-instruct"),
                                                            std::make_pair("prompt", transcribedText),
-                                                           std::make_pair("max_tokens", "five"),
-                                                           std::make_pair("temperature", "(double)0.5")); // deallocation needed
+                                                           std::make_pair("max_tokens", 32),
+                                                           std::make_pair("temperature", 0.5)); // deallocation needed
 
             ESP_LOGI(TAG, "%s\n", completionRequestJson);
             openAI->text_completion(completionRequestJson, completionResponseBuf);
@@ -197,7 +197,8 @@ extern "C" void app_main()
     printf("Wifi Connected Successfully\n");
     // Create JSON data
 
-    char *jsonData = json->createJson(std::make_pair("Wifi Status", "five "), std::make_pair("Ready to connect with the OpenAI", "Yes"));
+    char *jsonData = json->createJson(std::make_pair("Wifi Status", 1),
+                                      std::make_pair("Ready to connect with the OpenAI", 0.5));
 
     telemetrySend->send_telemetry_data(jsonData); // Post Health telemetry to the server
 
