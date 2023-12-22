@@ -1,7 +1,7 @@
 #include <string.h>
 #include "esp_log.h"
 #include "sdkconfig.h"
-
+#include <iostream>
 #include "audio_element.h"
 #include "audio_pipeline.h"
 #include "audio_event_iface.h"
@@ -15,16 +15,16 @@ static const char *TAG = "mp3_player";
 
 static audio_element_err_t mp3_music_read_cb(audio_element_handle_t el, char *buf, int len, TickType_t wait_time, void *ctx)
 {
-    AudioFrame* audio = (AudioFrame*)ctx;
+    AudioFrame *audio = (AudioFrame *)ctx;
 
     static int mp3_pos;
     int read_size = audio->len - mp3_pos;
-    if (read_size == 0) 
+    if (read_size == 0)
     {
-        mp3_pos =0;
+        mp3_pos = 0;
         return AEL_IO_DONE;
-    } 
-    else if (len < read_size) 
+    }
+    else if (len < read_size)
     {
         read_size = len;
     }
@@ -33,7 +33,6 @@ static audio_element_err_t mp3_music_read_cb(audio_element_handle_t el, char *bu
 
     return AEL_IO_OK; // or AEL_IO_DONE if appropriate for your use case;
 }
-
 
 void play(AudioFrame audio)
 {
@@ -53,7 +52,6 @@ void play(AudioFrame audio)
     audio_pipeline_cfg_t pipeline_cfg = DEFAULT_AUDIO_PIPELINE_CONFIG();
     pipeline = audio_pipeline_init(&pipeline_cfg);
     AUDIO_NULL_CHECK(TAG, pipeline, return);
-
 
     ESP_LOGI(TAG, "[3.2] Create i2s stream to write data to codec chip");
 #if defined CONFIG_ESP32_C3_LYRA_V2_BOARD
@@ -91,31 +89,32 @@ void play(AudioFrame audio)
     audio_pipeline_run(pipeline);
 
     ESP_LOGI(TAG, "[ 6 ] Listen for all pipeline events");
-    while (1) 
+    while (1)
     {
         audio_event_iface_msg_t msg;
         esp_err_t ret = audio_event_iface_listen(evt, &msg, portMAX_DELAY);
-        if (ret != ESP_OK) {
+        if (ret != ESP_OK)
+        {
             ESP_LOGE(TAG, "[ * ] Event interface error : %d", ret);
             continue;
         }
-
-        if (msg.source_type == AUDIO_ELEMENT_TYPE_ELEMENT && msg.source == (void *) mp3_decoder
-            && msg.cmd == AEL_MSG_CMD_REPORT_MUSIC_INFO) {
+        std::cout << "before if.... " << std::endl; // debug print
+        // This condtion is not getting true at that is Why audio is not playing
+        if (msg.source_type == AUDIO_ELEMENT_TYPE_ELEMENT && msg.source == (void *)mp3_decoder && msg.cmd == AEL_MSG_CMD_REPORT_MUSIC_INFO)
+        {   
             audio_element_info_t music_info = {0};
             audio_element_getinfo(mp3_decoder, &music_info);
 
             ESP_LOGI(TAG, "[ * ] Receive music info from mp3 decoder, sample_rates=%d, bits=%d, ch=%d",
                      music_info.sample_rates, music_info.bits, music_info.channels);
- 
+
             i2s_stream_set_clk(i2s_stream_writer, music_info.sample_rates, music_info.bits, music_info.channels);
             continue;
         }
-
+        std::cout << "After if.... " <<  std::endl;  // debug print
         /* Stop when the last pipeline element (i2s_stream_writer in this case) receives stop event */
-        if (msg.source_type == AUDIO_ELEMENT_TYPE_ELEMENT && msg.source == (void *) i2s_stream_writer
-            && msg.cmd == AEL_MSG_CMD_REPORT_STATUS
-            && (((int)msg.data == AEL_STATUS_STATE_STOPPED) || ((int)msg.data == AEL_STATUS_STATE_FINISHED))) {
+        if (msg.source_type == AUDIO_ELEMENT_TYPE_ELEMENT && msg.source == (void *)i2s_stream_writer && msg.cmd == AEL_MSG_CMD_REPORT_STATUS && (((int)msg.data == AEL_STATUS_STATE_STOPPED) || ((int)msg.data == AEL_STATUS_STATE_FINISHED)))
+        {
             ESP_LOGW(TAG, "[ * ] Stop event received");
             break;
         }

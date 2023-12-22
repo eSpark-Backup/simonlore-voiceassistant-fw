@@ -14,13 +14,13 @@ class Json
 public:
     void JsonOverRide(cJSON *root, const char *key, double value)
     {
-        printf("double type\n");
+        // printf("double type\n");
         cJSON_AddNumberToObject(root, key, static_cast<double>(value));
     }
 
     void JsonOverRide(cJSON *root, const char *key, const char *value)
     {
-        printf("const char* type\n");
+        // printf("const char* type\n");
         cJSON_AddStringToObject(root, key, static_cast<const char *>(value));
     }
 

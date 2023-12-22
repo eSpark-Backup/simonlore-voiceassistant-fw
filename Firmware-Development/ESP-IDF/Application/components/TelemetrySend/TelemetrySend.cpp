@@ -4,7 +4,7 @@
 
 
 // Define the server endpoint URL
-#define SERVER_URL "http://192.168.18.131:8080/"
+#define SERVER_URL "http://192.168.18.138:8080/"
 #define TAG "TelemetrySend" // Change this tag to suit your needs
 
 // Telemetry data structure (customize based on your needs)
@@ -38,5 +38,5 @@ void TelemetrySend::send_telemetry_data(const char *jsonData)
 
     // Clean up the HTTP client and free allocated memory for JSON data
     esp_http_client_cleanup(client);
-   
+    
 }

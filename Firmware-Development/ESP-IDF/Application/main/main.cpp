@@ -193,10 +193,10 @@ extern "C" void app_main()
     // Remember to set SofyAp for Wifi provision from menuConfig->Example configuration->provisoning transport -> set to Soft AP
     // Other wise the controller will not be able to detect the Wifi and it will reboot frequently and cause a problem
     wifiProvisioning->softap();
-
+    // vTaskDelay(10000 / portTICK_PERIOD_MS);
     printf("Wifi Connected Successfully\n");
     // Create JSON data
-
+    
     char *jsonData = json->createJson(std::make_pair("Wifi Status", 1),
                                       std::make_pair("Ready to connect with the OpenAI", 0.5));
 
@@ -204,7 +204,6 @@ extern "C" void app_main()
 
     free(jsonData);
     // Free the allocated memory for jsonData
-    // free((void *)jsonData);
     ESP_LOGE(TAG, "esp_get_free_heap_size - %d", esp_get_free_heap_size());
     ESP_LOGE(TAG, "esp_get_minimum_free_heap_size: %u", esp_get_minimum_free_heap_size());
     speechBuffer = static_cast<char *>(malloc(300 * 1024));
