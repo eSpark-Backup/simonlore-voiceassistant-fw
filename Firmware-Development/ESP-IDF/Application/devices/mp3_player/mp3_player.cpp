@@ -31,7 +31,7 @@ static audio_element_err_t mp3_music_read_cb(audio_element_handle_t el, char *bu
     memcpy(buf, audio->data + mp3_pos, read_size);
     mp3_pos += read_size;
 
-    return AEL_IO_OK; // or AEL_IO_DONE if appropriate for your use case;
+    return (audio_element_err_t)static_cast<size_t>(read_size); 
 }
 
 void play(AudioFrame audio)
@@ -101,7 +101,7 @@ void play(AudioFrame audio)
         std::cout << "before if.... " << std::endl; // debug print
         // This condtion is not getting true at that is Why audio is not playing
         if (msg.source_type == AUDIO_ELEMENT_TYPE_ELEMENT && msg.source == (void *)mp3_decoder && msg.cmd == AEL_MSG_CMD_REPORT_MUSIC_INFO)
-        {   
+        {
             audio_element_info_t music_info = {0};
             audio_element_getinfo(mp3_decoder, &music_info);
 
@@ -111,7 +111,7 @@ void play(AudioFrame audio)
             i2s_stream_set_clk(i2s_stream_writer, music_info.sample_rates, music_info.bits, music_info.channels);
             continue;
         }
-        std::cout << "After if.... " <<  std::endl;  // debug print
+        std::cout << "After if.... " << std::endl; // debug print
         /* Stop when the last pipeline element (i2s_stream_writer in this case) receives stop event */
         if (msg.source_type == AUDIO_ELEMENT_TYPE_ELEMENT && msg.source == (void *)i2s_stream_writer && msg.cmd == AEL_MSG_CMD_REPORT_STATUS && (((int)msg.data == AEL_STATUS_STATE_STOPPED) || ((int)msg.data == AEL_STATUS_STATE_FINISHED)))
         {
